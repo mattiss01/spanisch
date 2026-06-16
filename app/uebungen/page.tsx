@@ -4,7 +4,7 @@ import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Exercise, ExerciseType, Difficulty } from '@/lib/types';
 import ExerciseRenderer from '@/components/ExerciseRenderer';
-import { recordExercise } from '@/lib/storage';
+import { recordExercise, getConjugationRecords } from '@/lib/storage';
 
 const TYPES: { id: ExerciseType; label: string; icon: string }[] = [
   { id: 'fill_blank', label: 'Lückentext', icon: '✏️' },
@@ -37,10 +37,15 @@ function UebungenContent() {
     setCompleted(false);
 
     try {
+      const knownVerbs =
+        selectedType === 'conjugation'
+          ? getConjugationRecords().map(r => r.verb)
+          : undefined;
+
       const res = await fetch('/api/exercise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: selectedType, topic, difficulty }),
+        body: JSON.stringify({ type: selectedType, topic, difficulty, knownVerbs }),
       });
       const data = await res.json();
       if (data.error) {

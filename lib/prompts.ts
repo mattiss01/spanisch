@@ -4,7 +4,7 @@ export function getPrompt(
   type: ExerciseType,
   topic: string,
   difficulty: Difficulty,
-  options?: { verb?: string; tense?: string }
+  options?: { verb?: string; knownVerbs?: string[] }
 ): string {
   switch (type) {
     case 'fill_blank':
@@ -16,7 +16,7 @@ export function getPrompt(
     case 'error_correction':
       return errorCorrectionPrompt(topic, difficulty);
     case 'conjugation':
-      return conjugationPrompt(topic, difficulty, options?.verb, options?.tense);
+      return conjugationPrompt(difficulty, options?.verb, options?.knownVerbs ?? []);
     case 'reading':
       return readingPrompt(topic, difficulty);
     case 'vocabulary':
@@ -125,31 +125,58 @@ Antworte NUR mit diesem JSON:
 Erstelle 5 Sätze. Genau ein Fehler pro Satz. Fehlertypen variieren: Genus, Verbform, Ser/Estar, Präposition, Reflexivverb, Pluralbildung.`;
 }
 
-function conjugationPrompt(topic: string, difficulty: Difficulty, verb?: string, forcedTense?: string): string {
-  const b1Tenses = ['presente', 'pretérito indefinido', 'pretérito imperfecto', 'futuro simple', 'condicional simple'];
-  const b2Tenses = ['subjuntivo presente', 'subjuntivo imperfecto', 'pretérito perfecto compuesto', 'pretérito pluscuamperfecto', 'imperativo afirmativo'];
-  const tenses = difficulty === 'B1' ? b1Tenses : b2Tenses;
-  const tense = forcedTense ?? tenses[Math.floor(Math.random() * tenses.length)];
-  const verbLine = verb ? `Verb: ${verb} (genau dieses Verb verwenden)` : (topic ? `Themenkontext / Verb-Präferenz: ${topic}` : 'Wähle ein häufiges, nützliches Verb');
+function conjugationPrompt(difficulty: Difficulty, verb?: string, knownVerbs: string[] = []): string {
+  const b1Tenses = [
+    { tense: 'presente', de: 'Präsens' },
+    { tense: 'pretérito indefinido', de: 'Einfache Vergangenheit' },
+    { tense: 'pretérito imperfecto', de: 'Imperfekt' },
+    { tense: 'futuro simple', de: 'Einfaches Futur' },
+    { tense: 'condicional simple', de: 'Konditional I' },
+  ];
+  const b2Extra = [
+    { tense: 'pretérito perfecto compuesto', de: 'Perfekt' },
+    { tense: 'subjuntivo presente', de: 'Konjunktiv Präsens' },
+    { tense: 'imperativo afirmativo', de: 'Imperativ' },
+    { tense: 'pretérito pluscuamperfecto', de: 'Plusquamperfekt' },
+    { tense: 'subjuntivo imperfecto', de: 'Konjunktiv Imperfekt' },
+  ];
+  const tenses = difficulty === 'B1' ? b1Tenses : [...b1Tenses, ...b2Extra];
 
-  return `Erstelle eine Konjugationsübung für Spanisch-Lernende (${difficulty}).
-Zeitform: ${tense}
+  const verbLine = verb
+    ? `Verb: ${verb} (genau dieses Verb verwenden)`
+    : `Wähle ein häufiges, für ${difficulty} wichtiges spanisches Verb.${
+        knownVerbs.length > 0
+          ? ` Verwende KEINES dieser bereits gelernten Verben: ${knownVerbs.slice(0, 30).join(', ')}.`
+          : ''
+      }`;
+
+  const exampleSection = `    {
+      "tense": "${tenses[0].tense}",
+      "tenseName_de": "${tenses[0].de}",
+      "pronouns": ["yo", "tú", "él/ella/usted", "nosotros/as", "vosotros/as", "ellos/ellas/ustedes"],
+      "answers": ["1. Form", "2. Form", "3. Form", "4. Form", "5. Form", "6. Form"],
+      "notes": "Hinweis auf Unregelmäßigkeiten (optional, sonst null)"
+    }`;
+
+  return `Erstelle eine vollständige Konjugationsübung auf Spanisch für deutschsprachige Lernende (${difficulty}).
 ${verbLine}
 
-Antworte NUR mit diesem JSON:
+Das Verb soll in ALLEN folgenden ${tenses.length} Zeitformen konjugiert werden:
+${tenses.map((t, i) => `${i + 1}. ${t.tense} (${t.de})`).join('\n')}
+
+Antworte NUR mit diesem JSON (kein Markdown, kein Text):
 {
   "type": "conjugation",
-  "title": "Deutsch-Titel (z.B. 'Konjugation: hablar im Presente')",
-  "verb": "Infinitiv",
-  "tense": "${tense}",
-  "tenseName_de": "Zeitform auf Deutsch (z.B. 'Präsens', 'Einfache Vergangenheit')",
-  "instruction": "Anweisung auf Deutsch",
-  "pronouns": ["yo", "tú", "él/ella/usted", "nosotros/as", "vosotros/as", "ellos/ellas/ustedes"],
-  "answers": ["yo-Form", "tú-Form", "él-Form", "nosotros-Form", "vosotros-Form", "ellos-Form"],
-  "notes": "Hinweis auf Unregelmäßigkeiten auf Deutsch"
+  "title": "Konjugation: [verb]",
+  "verb": "Infinitiv des Verbs",
+  "instruction": "Konjugiere das Verb in allen ${tenses.length} Zeitformen.",
+  "sections": [
+${exampleSection},
+    ... (genau ${tenses.length} sections, eine pro Zeitform in der angegebenen Reihenfolge)
+  ]
 }
 
-Wähle ein für B1/B2 relevantes Verb. Die 6 Formen in answers müssen zur Zeitform ${tense} passen.`;
+Wichtig: sections muss genau ${tenses.length} Einträge haben. Die Reihenfolge muss der Liste oben entsprechen. Alle 6 Formen pro Zeitform müssen korrekt sein.`;
 }
 
 function readingPrompt(topic: string, difficulty: Difficulty): string {

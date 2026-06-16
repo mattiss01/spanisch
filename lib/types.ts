@@ -69,16 +69,20 @@ export interface ErrorCorrectionExercise {
   items: ErrorCorrectionItem[];
 }
 
+export interface ConjugationSection {
+  tense: string;
+  tenseName_de: string;
+  pronouns: string[];
+  answers: string[];
+  notes?: string;
+}
+
 export interface ConjugationExercise {
   type: 'conjugation';
   title: string;
   verb: string;
-  tense: string;
-  tenseName_de: string;
   instruction: string;
-  pronouns: string[];
-  answers: string[];
-  notes?: string;
+  sections: ConjugationSection[];
 }
 
 export interface ReadingQuestion {
@@ -166,9 +170,7 @@ export interface ConjugationMistake {
   userAnswer: string;
 }
 
-export interface ConjugationRecord {
-  id: string;          // "${verb}|${tense}"
-  verb: string;
+export interface ConjugationSectionRecord {
   tense: string;
   tenseName_de: string;
   pronouns: string[];
@@ -177,6 +179,13 @@ export interface ConjugationRecord {
   totalCorrect: number;
   totalQuestions: number;
   recentMistakes: ConjugationMistake[];
+}
+
+export interface ConjugationRecord {
+  id: string;           // verb infinitive
+  verb: string;
+  sections: ConjugationSectionRecord[];
+  totalAttempts: number;
   lastAttempted: string;
-  mastered: boolean;   // true when last attempt was 100% correct
+  mastered: boolean;    // true when all sections had 0 mistakes in last attempt
 }

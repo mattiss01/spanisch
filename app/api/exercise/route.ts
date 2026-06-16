@@ -6,12 +6,12 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 export async function POST(req: NextRequest) {
-  const { type, topic, difficulty, verb, tense } = (await req.json()) as {
+  const { type, topic, difficulty, verb, knownVerbs } = (await req.json()) as {
     type: ExerciseType;
     topic: string;
     difficulty: Difficulty;
     verb?: string;
-    tense?: string;
+    knownVerbs?: string[];
   };
 
   const apiKey = process.env.GROQ_API_KEY;
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const userPrompt = getPrompt(type, topic ?? '', difficulty ?? 'B1', { verb, tense });
+  const userPrompt = getPrompt(type, topic ?? '', difficulty ?? 'B1', { verb, knownVerbs });
 
   const groqRes = await fetch(GROQ_URL, {
     method: 'POST',

@@ -1,6 +1,6 @@
 'use client';
 
-import { VocabEntry, ProgressStats, ExerciseType, ConjugationRecord } from './types';
+import { VocabEntry, ProgressStats, ExerciseType, ConjugationRecord, ConjugationSectionRecord } from './types';
 
 const VOCAB_KEY = 'spanisch_vocab';
 const STATS_KEY = 'spanisch_stats';
@@ -74,51 +74,64 @@ export function getConjugationRecords(): ConjugationRecord[] {
   }
 }
 
-export function upsertConjugationAttempt(
-  verb: string,
-  tense: string,
-  tenseName_de: string,
-  pronouns: string[],
-  correctAnswers: string[],
-  userAnswers: string[]
-): void {
+export interface SectionAttempt {
+  tense: string;
+  tenseName_de: string;
+  pronouns: string[];
+  correctAnswers: string[];
+  userAnswers: string[];
+}
+
+export function upsertConjugationAttempt(verb: string, sections: SectionAttempt[]): void {
   const records = getConjugationRecords();
-  const id = `${verb}|${tense}`;
 
-  const correct = userAnswers.map(
-    (a, i) => a.trim().toLowerCase() === correctAnswers[i].toLowerCase()
-  );
-  const correctCount = correct.filter(Boolean).length;
-  const recentMistakes = pronouns
-    .map((p, i) =>
-      !correct[i] ? { pronoun: p, correct: correctAnswers[i], userAnswer: userAnswers[i] } : null
-    )
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+  const computed: ConjugationSectionRecord[] = sections.map(s => {
+    const correct = s.userAnswers.map(
+      (a, i) => a.trim().toLowerCase() === s.correctAnswers[i].toLowerCase()
+    );
+    return {
+      tense: s.tense,
+      tenseName_de: s.tenseName_de,
+      pronouns: s.pronouns,
+      correctAnswers: s.correctAnswers,
+      totalAttempts: 1,
+      totalCorrect: correct.filter(Boolean).length,
+      totalQuestions: s.pronouns.length,
+      recentMistakes: s.pronouns
+        .map((p, i) =>
+          !correct[i] ? { pronoun: p, correct: s.correctAnswers[i], userAnswer: s.userAnswers[i] } : null
+        )
+        .filter((x): x is NonNullable<typeof x> => x !== null),
+    };
+  });
 
-  const existing = records.find(r => r.id === id);
+  const mastered = computed.every(s => s.recentMistakes.length === 0);
+  const existing = records.find(r => r.id === verb);
+
   if (existing) {
     existing.totalAttempts += 1;
-    existing.totalCorrect += correctCount;
-    existing.totalQuestions += pronouns.length;
-    existing.recentMistakes = recentMistakes;
     existing.lastAttempted = new Date().toISOString();
-    existing.mastered = recentMistakes.length === 0;
-    existing.correctAnswers = correctAnswers;
-    existing.tenseName_de = tenseName_de;
+    existing.mastered = mastered;
+    computed.forEach(cs => {
+      const es = existing.sections.find(s => s.tense === cs.tense);
+      if (es) {
+        es.totalAttempts += 1;
+        es.totalCorrect += cs.totalCorrect;
+        es.totalQuestions += cs.totalQuestions;
+        es.recentMistakes = cs.recentMistakes;
+        es.correctAnswers = cs.correctAnswers;
+      } else {
+        existing.sections.push(cs);
+      }
+    });
   } else {
     records.unshift({
-      id,
+      id: verb,
       verb,
-      tense,
-      tenseName_de,
-      pronouns,
-      correctAnswers,
+      sections: computed,
       totalAttempts: 1,
-      totalCorrect: correctCount,
-      totalQuestions: pronouns.length,
-      recentMistakes,
       lastAttempted: new Date().toISOString(),
-      mastered: recentMistakes.length === 0,
+      mastered,
     });
   }
 
