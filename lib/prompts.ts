@@ -1,6 +1,11 @@
 import { ExerciseType, Difficulty } from './types';
 
-export function getPrompt(type: ExerciseType, topic: string, difficulty: Difficulty): string {
+export function getPrompt(
+  type: ExerciseType,
+  topic: string,
+  difficulty: Difficulty,
+  options?: { verb?: string; tense?: string }
+): string {
   switch (type) {
     case 'fill_blank':
       return fillBlankPrompt(topic, difficulty);
@@ -11,7 +16,7 @@ export function getPrompt(type: ExerciseType, topic: string, difficulty: Difficu
     case 'error_correction':
       return errorCorrectionPrompt(topic, difficulty);
     case 'conjugation':
-      return conjugationPrompt(topic, difficulty);
+      return conjugationPrompt(topic, difficulty, options?.verb, options?.tense);
     case 'reading':
       return readingPrompt(topic, difficulty);
     case 'vocabulary':
@@ -120,15 +125,16 @@ Antworte NUR mit diesem JSON:
 Erstelle 5 Sätze. Genau ein Fehler pro Satz. Fehlertypen variieren: Genus, Verbform, Ser/Estar, Präposition, Reflexivverb, Pluralbildung.`;
 }
 
-function conjugationPrompt(topic: string, difficulty: Difficulty): string {
+function conjugationPrompt(topic: string, difficulty: Difficulty, verb?: string, forcedTense?: string): string {
   const b1Tenses = ['presente', 'pretérito indefinido', 'pretérito imperfecto', 'futuro simple', 'condicional simple'];
   const b2Tenses = ['subjuntivo presente', 'subjuntivo imperfecto', 'pretérito perfecto compuesto', 'pretérito pluscuamperfecto', 'imperativo afirmativo'];
   const tenses = difficulty === 'B1' ? b1Tenses : b2Tenses;
-  const tense = tenses[Math.floor(Math.random() * tenses.length)];
+  const tense = forcedTense ?? tenses[Math.floor(Math.random() * tenses.length)];
+  const verbLine = verb ? `Verb: ${verb} (genau dieses Verb verwenden)` : (topic ? `Themenkontext / Verb-Präferenz: ${topic}` : 'Wähle ein häufiges, nützliches Verb');
 
   return `Erstelle eine Konjugationsübung für Spanisch-Lernende (${difficulty}).
 Zeitform: ${tense}
-${topic ? `Themenkontext / Verb-Präferenz: ${topic}` : 'Wähle ein häufiges, nützliches Verb'}
+${verbLine}
 
 Antworte NUR mit diesem JSON:
 {

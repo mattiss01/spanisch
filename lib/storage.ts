@@ -1,9 +1,10 @@
 'use client';
 
-import { VocabEntry, ProgressStats, ExerciseType } from './types';
+import { VocabEntry, ProgressStats, ExerciseType, ConjugationRecord } from './types';
 
 const VOCAB_KEY = 'spanisch_vocab';
 const STATS_KEY = 'spanisch_stats';
+const CONJUGATION_KEY = 'spanisch_conjugation';
 
 export function getVocab(): VocabEntry[] {
   if (typeof window === 'undefined') return [];
@@ -61,6 +62,67 @@ export function getStats(): ProgressStats {
   } catch {
     return defaultStats;
   }
+}
+
+export function getConjugationRecords(): ConjugationRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CONJUGATION_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function upsertConjugationAttempt(
+  verb: string,
+  tense: string,
+  tenseName_de: string,
+  pronouns: string[],
+  correctAnswers: string[],
+  userAnswers: string[]
+): void {
+  const records = getConjugationRecords();
+  const id = `${verb}|${tense}`;
+
+  const correct = userAnswers.map(
+    (a, i) => a.trim().toLowerCase() === correctAnswers[i].toLowerCase()
+  );
+  const correctCount = correct.filter(Boolean).length;
+  const recentMistakes = pronouns
+    .map((p, i) =>
+      !correct[i] ? { pronoun: p, correct: correctAnswers[i], userAnswer: userAnswers[i] } : null
+    )
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const existing = records.find(r => r.id === id);
+  if (existing) {
+    existing.totalAttempts += 1;
+    existing.totalCorrect += correctCount;
+    existing.totalQuestions += pronouns.length;
+    existing.recentMistakes = recentMistakes;
+    existing.lastAttempted = new Date().toISOString();
+    existing.mastered = recentMistakes.length === 0;
+    existing.correctAnswers = correctAnswers;
+    existing.tenseName_de = tenseName_de;
+  } else {
+    records.unshift({
+      id,
+      verb,
+      tense,
+      tenseName_de,
+      pronouns,
+      correctAnswers,
+      totalAttempts: 1,
+      totalCorrect: correctCount,
+      totalQuestions: pronouns.length,
+      recentMistakes,
+      lastAttempted: new Date().toISOString(),
+      mastered: recentMistakes.length === 0,
+    });
+  }
+
+  localStorage.setItem(CONJUGATION_KEY, JSON.stringify(records));
 }
 
 export function recordExercise(type: ExerciseType, correct: number, total: number): void {

@@ -6,8 +6,9 @@ import { usePathname } from 'next/navigation';
 const nav = [
   { href: '/', label: 'Dashboard', icon: '🏠' },
   { href: '/uebungen', label: 'Übungen', icon: '✏️' },
-  { href: '/lernplan', label: 'Lernplan', icon: '📚' },
+  { href: '/konjugation', label: 'Verben', icon: '🔤' },
   { href: '/vokabeln', label: 'Vokabeln', icon: '📖' },
+  { href: '/lernplan', label: 'Lernplan', icon: '📚' },
 ];
 
 export default function Navigation() {

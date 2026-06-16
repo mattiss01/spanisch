@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ConjugationExercise } from '@/lib/types';
+import { upsertConjugationAttempt } from '@/lib/storage';
 
 interface Props {
   exercise: ConjugationExercise;
@@ -19,8 +20,18 @@ export default function Conjugation({ exercise, onComplete }: Props) {
   const correct = results.filter(Boolean).length;
 
   function check() {
+    const res = answers.map((a, i) => a.trim().toLowerCase() === exercise.answers[i].toLowerCase());
+    const correctCount = res.filter(Boolean).length;
     setChecked(true);
-    onComplete?.(correct, exercise.pronouns.length);
+    upsertConjugationAttempt(
+      exercise.verb,
+      exercise.tense,
+      exercise.tenseName_de,
+      exercise.pronouns,
+      exercise.answers,
+      answers
+    );
+    onComplete?.(correctCount, exercise.pronouns.length);
   }
 
   function reset() {

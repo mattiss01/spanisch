@@ -159,3 +159,24 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
+
+export interface ConjugationMistake {
+  pronoun: string;
+  correct: string;
+  userAnswer: string;
+}
+
+export interface ConjugationRecord {
+  id: string;          // "${verb}|${tense}"
+  verb: string;
+  tense: string;
+  tenseName_de: string;
+  pronouns: string[];
+  correctAnswers: string[];
+  totalAttempts: number;
+  totalCorrect: number;
+  totalQuestions: number;
+  recentMistakes: ConjugationMistake[];
+  lastAttempted: string;
+  mastered: boolean;   // true when last attempt was 100% correct
+}
