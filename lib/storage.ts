@@ -68,7 +68,12 @@ export function getConjugationRecords(): ConjugationRecord[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(CONJUGATION_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown[];
+    // Filter out old-format records that predate the sections[] structure
+    return parsed.filter(
+      (r): r is ConjugationRecord => typeof r === 'object' && r !== null && Array.isArray((r as ConjugationRecord).sections)
+    );
   } catch {
     return [];
   }
