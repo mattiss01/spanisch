@@ -149,6 +149,11 @@ export default function VokabelnPage() {
     setVocab(v);
     setStats(s);
   }, []);
+  // Stats-only reconcile — used after a session so we never overwrite the
+  // optimistic vocab state (which already matches what we wrote to the server).
+  const refreshStats = useCallback(async () => {
+    setStats(await getStats());
+  }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
   if (!ready || !profile) {
@@ -214,9 +219,10 @@ export default function VokabelnPage() {
     setPhase('active');
   }
 
-  // Reconcile local state with the server once all queued saves have landed.
+  // After all queued saves land, reconcile only the streak from the server.
+  // Vocab counts stay on their optimistic values so they never flicker back.
   function drainAndRefresh() {
-    saveChain.current = saveChain.current.then(() => refresh()).catch(() => {});
+    saveChain.current = saveChain.current.then(() => refreshStats()).catch(() => {});
   }
 
   // Rate one word: update the UI instantly (optimistic), advance immediately,
