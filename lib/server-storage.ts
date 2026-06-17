@@ -11,7 +11,7 @@ export async function readJson<T>(file: string, fallback: T, userId = 'default')
     const match = blobs.find(b => b.pathname === blobKey);
     if (!match) return fallback;
     try {
-      const res = await fetch(match.url, { cache: 'no-store' });
+      const res = await fetch(match.downloadUrl, { cache: 'no-store' });
       if (!res.ok) return fallback;
       return (await res.json()) as T;
     } catch {
@@ -32,7 +32,7 @@ export async function writeJson(file: string, data: unknown, userId = 'default')
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const { put } = await import('@vercel/blob');
     await put(`users/${userId}/${file}`, JSON.stringify(data), {
-      access: 'public',
+      access: 'private',
       addRandomSuffix: false,
       contentType: 'application/json',
     });
