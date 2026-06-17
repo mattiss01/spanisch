@@ -143,6 +143,8 @@ export default function VokabelnPage() {
   const [addTarget, setAddTarget] = useState('');
   const [addExample, setAddExample] = useState('');
   const [addError, setAddError] = useState('');
+  const [learnCount, setLearnCount] = useState(20);
+  const [reviewCount, setReviewCount] = useState(20);
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -201,7 +203,7 @@ export default function VokabelnPage() {
 
   function startLernen() {
     const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
-    const source = unseen.length > 0 ? unseen.slice(0, 20) : shuffle(VOCAB_CATALOG).slice(0, 20);
+    const source = unseen.length > 0 ? unseen.slice(0, learnCount) : shuffle(VOCAB_CATALOG).slice(0, learnCount);
     const sessionItems = source.map(e => makeItem(e.de, e.es, ''));
     setItems(sessionItems);
     setAnswers(sessionItems.map(() => ''));
@@ -212,7 +214,7 @@ export default function VokabelnPage() {
   }
 
   function startWiederholen() {
-    const wItems = dueToday.slice(0, 20).map(v =>
+    const wItems = dueToday.slice(0, reviewCount).map(v =>
       makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))
     );
     setItems(wItems);
@@ -403,7 +405,7 @@ export default function VokabelnPage() {
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                 <div>
                   <p className="text-sm text-gray-600">
-                    Next 20 unknown words from the catalog.
+                    New words from the catalog.
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     {unseenCount > 0
@@ -419,6 +421,12 @@ export default function VokabelnPage() {
                     </div>
                   )}
                 </div>
+                <CountPicker
+                  label="How many words?"
+                  value={learnCount}
+                  onChange={setLearnCount}
+                  max={unseenCount > 0 ? unseenCount : VOCAB_CATALOG.length}
+                />
                 <button
                   onClick={startLernen}
                   className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
@@ -472,8 +480,13 @@ export default function VokabelnPage() {
                 <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                   <p className="text-sm text-gray-600">
                     You have <strong>{dueToday.length}</strong> words due today.
-                    {dueToday.length > 20 && ' 20 will be tested.'}
                   </p>
+                  <CountPicker
+                    label="How many to review?"
+                    value={reviewCount}
+                    onChange={setReviewCount}
+                    max={dueToday.length}
+                  />
                   <button
                     onClick={startWiederholen}
                     className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-colors"
@@ -617,7 +630,6 @@ function SessionPanel({
   onReset,
 }: SessionPanelProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const allFilled = answers.every(a => a.trim().length > 0);
 
   const bekanntOverrideCount = confidence.filter((c, i) => results[i] && c === 'bekannt').length;
   const unsicherCount = confidence.filter((c, i) => results[i] && c === 'unsicher').length;
@@ -690,7 +702,7 @@ function SessionPanel({
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       if (i < items.length - 1) inputRefs.current[i + 1]?.focus();
-                      else if (allFilled) onSubmit();
+                      else onSubmit();
                     }
                   }}
                   placeholder={answerPlaceholder}
@@ -766,8 +778,7 @@ function SessionPanel({
       {phase === 'input' ? (
         <button
           onClick={onSubmit}
-          disabled={!allFilled}
-          className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-semibold transition-colors"
+          className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
         >
           Check
         </button>
@@ -793,4 +804,48 @@ function SessionPanel({
 
 function toKeep(results: boolean[], confidence: Confidence[]): number {
   return results.filter((r, i) => r && confidence[i] === 'sicher').length;
+}
+
+// ─── CountPicker ───────────────────────────────────────────────────────────────
+
+function CountPicker({
+  label,
+  value,
+  onChange,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  max: number;
+}) {
+  if (max <= 0) return null;
+  const presets = [5, 10, 20, 30].filter(n => n < max);
+  const options = [...presets, max]; // last option = "All"
+  const effective = Math.min(value, max);
+
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-1.5">{label}</p>
+      <div className="flex gap-1.5 flex-wrap">
+        {options.map((n, i) => {
+          const isAll = i === options.length - 1;
+          const active = effective === n;
+          return (
+            <button
+              key={n}
+              onClick={() => onChange(n)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-red-700 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {isAll ? `All (${max})` : n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
