@@ -44,10 +44,10 @@ function isDue(nextReview?: string): boolean {
 }
 
 function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidence): number {
-  if (conf === 'bekannt') return 5;
-  if (!correct) return Math.max(1, currentLevel - 1);
-  if (conf === 'unsicher') return Math.max(1, currentLevel);
-  return Math.min(5, currentLevel + 1);
+  if (!correct) return Math.max(1, currentLevel - 1); // wrong: drop a phase
+  if (conf === 'unsicher') return Math.max(1, currentLevel);     // Hard: stay
+  if (conf === 'bekannt') return Math.min(5, currentLevel + 2);  // Easy: +2 phases
+  return Math.min(5, currentLevel + 1);                          // Good: +1 phase
 }
 
 function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
@@ -128,6 +128,8 @@ export default function VokabelnPage() {
   const [current, setCurrent] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [sessionCorrect, setSessionCorrect] = useState(0);
+  // Serializes per-word saves so concurrent writes don't clobber each other.
+  const saveChain = useRef<Promise<unknown>>(Promise.resolve());
 
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -209,27 +211,74 @@ export default function VokabelnPage() {
     setPhase('active');
   }
 
-  // Save one rated word immediately, then advance to the next (or finish).
-  async function handleRate(correct: boolean, conf: Confidence) {
+  // Reconcile local state with the server once all queued saves have landed.
+  function drainAndRefresh() {
+    saveChain.current = saveChain.current.then(() => refresh()).catch(() => {});
+  }
+
+  // Rate one word: update the UI instantly (optimistic), advance immediately,
+  // and queue the server write so concurrent saves run in order, not in parallel.
+  function handleRate(correct: boolean, conf: Confidence) {
     const item = items[current];
+    const isLearn = tab === 'lernen';
     const newLevel = computeNewLevel(item.currentLevel, correct, conf);
     const nr = nextReviewDate(newLevel, correct, conf);
+    const now = new Date().toISOString();
+    const isLast = current + 1 >= items.length;
 
-    if (tab === 'lernen') {
-      await processVocabSession([
-        { word: item.es, translation: item.de, example: item.example, level: newLevel, nextReview: nr },
-      ]);
-    } else if (item.vocabId) {
-      await batchUpdateVocabStatus([{ id: item.vocabId, level: newLevel, nextReview: nr }]);
-    }
-    await recordExercise('vocabulary', correct ? 1 : 0, 1);
-
+    // ── optimistic local update so banner/counts move instantly ──
+    setVocab(prev => {
+      if (isLearn) {
+        const key = norm(item.es);
+        const idx = prev.findIndex(v => norm(v.word) === key);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: copy[idx].reviewCount + 1 };
+          return copy;
+        }
+        const entry: VocabEntry = {
+          id: `local-${key}`,
+          word: item.es,
+          translation: item.de,
+          example: item.example || undefined,
+          level: newLevel,
+          nextReview: nr,
+          lastReviewed: now,
+          addedAt: now,
+          reviewCount: 1,
+        };
+        return [entry, ...prev];
+      }
+      return prev.map(v =>
+        v.id === item.vocabId
+          ? { ...v, level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: v.reviewCount + 1 }
+          : v
+      );
+    });
+    setStats(prev => (prev ? { ...prev, lastActivity: now } : prev));
     setDoneCount(d => d + 1);
     if (correct) setSessionCorrect(c => c + 1);
-    refresh(); // update banner/counts in the background
 
-    if (current + 1 >= items.length) setPhase('done');
+    // ── advance the card immediately ──
+    if (isLast) setPhase('done');
     else setCurrent(c => c + 1);
+
+    // ── queue the persist (serialized to avoid clobbering writes) ──
+    saveChain.current = saveChain.current
+      .then(async () => {
+        if (isLearn) {
+          await processVocabSession([
+            { word: item.es, translation: item.de, example: item.example, level: newLevel, nextReview: nr },
+          ]);
+        } else if (item.vocabId) {
+          await batchUpdateVocabStatus([{ id: item.vocabId, level: newLevel, nextReview: nr }]);
+        }
+        await recordExercise('vocabulary', correct ? 1 : 0, 1);
+      })
+      .catch(() => {});
+
+    // When the session ends, reconcile with the server (real multi-day streak).
+    if (isLast) drainAndRefresh();
   }
 
   async function handleAddWord() {
@@ -325,7 +374,7 @@ export default function VokabelnPage() {
         position={current + 1}
         total={items.length}
         onRate={handleRate}
-        onFinish={() => setPhase('done')}
+        onFinish={() => { setPhase('done'); drainAndRefresh(); }}
       />
     ) : phase === 'done' ? (
       <div className="bg-white rounded-xl border border-gray-200 p-6 text-center space-y-3">
@@ -682,7 +731,7 @@ function Flashcard({
                 className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
               >
                 Easy
-                <span className="block text-[10px] font-normal opacity-80">mark known</span>
+                <span className="block text-[10px] font-normal opacity-80">+2 phases</span>
               </button>
             </div>
           ) : (
