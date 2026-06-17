@@ -12,18 +12,19 @@ function useBlob(): boolean {
 
 export async function readJson<T>(file: string, fallback: T, userId = 'default'): Promise<T> {
   if (useBlob()) {
-    const { list } = await import('@vercel/blob');
-    const blobKey = `users/${userId}/${file}`;
-    const { blobs } = await list({ prefix: blobKey });
-    const match = blobs.find(b => b.pathname === blobKey);
-    if (!match) return fallback;
+    // Private-store blobs can't be fetched anonymously — use the SDK's get(),
+    // which authenticates with the same (OIDC) credentials as put().
+    const { get } = await import('@vercel/blob');
     try {
-      const res = await fetch(match.downloadUrl, { cache: 'no-store' });
-      if (!res.ok) return fallback;
-      return (await res.json()) as T;
+      const res = await get(`users/${userId}/${file}`, { access: 'private' });
+      if (res && res.statusCode === 200 && res.stream) {
+        const text = await new Response(res.stream).text();
+        return JSON.parse(text) as T;
+      }
     } catch {
-      return fallback;
+      // blob not found or read error → fall back
     }
+    return fallback;
   }
 
   try {
