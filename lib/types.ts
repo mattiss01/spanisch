@@ -138,7 +138,7 @@ export type Exercise =
   | VocabularyExercise
   | ConversationExercise;
 
-export type VocabStatus = 'wiederholen' | 'bekannt';
+export type VocabStatus = 'wiederholen' | 'bekannt'; // kept for legacy migration reads
 
 export interface VocabEntry {
   id: string;
@@ -150,7 +150,9 @@ export interface VocabEntry {
   addedAt: string;
   reviewCount: number;
   lastReviewed?: string;
-  status?: VocabStatus;
+  status?: VocabStatus; // legacy — still read for migration, new writes use level/nextReview
+  level?: number;       // 0 = new (unused in DB), 1–4 = learning, 5 = bekannt
+  nextReview?: string;  // ISO date; when past (or absent) the word is due for review
 }
 
 export interface ProgressStats {

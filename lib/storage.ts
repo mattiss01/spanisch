@@ -1,6 +1,5 @@
 import {
   VocabEntry,
-  VocabStatus,
   ProgressStats,
   ExerciseType,
   ConjugationRecord,
@@ -74,15 +73,17 @@ export async function updateVocabReview(id: string): Promise<void> {
 
 export async function updateVocabStatus(id: string, correct: boolean): Promise<void> {
   const entries = await getVocab();
+  const now = new Date().toISOString();
   await putJson(
     '/api/data/vocab',
     entries.map(e =>
       e.id === id
         ? {
             ...e,
-            status: (correct ? 'bekannt' : 'wiederholen') as VocabStatus,
+            level: correct ? 5 : 1,
+            nextReview: correct ? '' : now,
             reviewCount: e.reviewCount + 1,
-            lastReviewed: new Date().toISOString(),
+            lastReviewed: now,
           }
         : e
     )
@@ -91,7 +92,7 @@ export async function updateVocabStatus(id: string, correct: boolean): Promise<v
 
 // Batch-save for a full learning/review session (2 API calls total)
 export async function processVocabSession(
-  session: Array<{ word: string; translation: string; example?: string; status: VocabStatus }>
+  session: Array<{ word: string; translation: string; example?: string; level: number; nextReview: string }>
 ): Promise<void> {
   const existing = await getVocab();
   const existingByNorm = new Map(existing.map(v => [normWord(v.word), v.id]));
@@ -107,14 +108,19 @@ export async function processVocabSession(
       if (idx >= 0) {
         updated[idx] = {
           ...updated[idx],
-          status: item.status,
+          level: item.level,
+          nextReview: item.nextReview,
           reviewCount: updated[idx].reviewCount + 1,
           lastReviewed: now,
         };
       }
     } else {
       toAdd.push({
-        ...item,
+        word: item.word,
+        translation: item.translation,
+        example: item.example,
+        level: item.level,
+        nextReview: item.nextReview,
         id: crypto.randomUUID(),
         addedAt: now,
         reviewCount: 0,
@@ -127,19 +133,20 @@ export async function processVocabSession(
 
 // Batch-update existing words by id (for wiederholen sessions)
 export async function batchUpdateVocabStatus(
-  updates: { id: string; correct: boolean }[]
+  updates: { id: string; level: number; nextReview: string }[]
 ): Promise<void> {
   const entries = await getVocab();
-  const map = new Map(updates.map(u => [u.id, u.correct]));
+  const map = new Map(updates.map(u => [u.id, u]));
   const now = new Date().toISOString();
   await putJson(
     '/api/data/vocab',
     entries.map(e => {
-      const correct = map.get(e.id);
-      if (correct === undefined) return e;
+      const upd = map.get(e.id);
+      if (!upd) return e;
       return {
         ...e,
-        status: (correct ? 'bekannt' : 'wiederholen') as VocabStatus,
+        level: upd.level,
+        nextReview: upd.nextReview,
         reviewCount: e.reviewCount + 1,
         lastReviewed: now,
       };
