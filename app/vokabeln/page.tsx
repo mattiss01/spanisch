@@ -45,15 +45,15 @@ function isDue(nextReview?: string): boolean {
 
 function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidence): number {
   if (!correct) return Math.max(1, currentLevel - 1); // wrong: drop a phase
-  if (conf === 'unsicher') return Math.max(1, currentLevel);     // Hard: stay
-  if (conf === 'bekannt') return Math.min(5, currentLevel + 2);  // Easy: +2 phases
-  return Math.min(5, currentLevel + 1);                          // Good: +1 phase
+  if (conf === 'bekannt') return 5;                          // Easy: mark known
+  if (conf === 'unsicher') return Math.max(1, currentLevel); // Hard: stay in phase
+  return Math.min(5, currentLevel + 1);                      // Good: +1 phase
 }
 
 function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
   if (newLevel >= 5) return '';
-  if (!correct) return new Date().toISOString();
-  if (conf === 'unsicher') {
+  // Failed or "Hard": review tomorrow, not again today.
+  if (!correct || conf === 'unsicher') {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString();
@@ -195,7 +195,8 @@ export default function VokabelnPage() {
   function startLernen() {
     const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
     if (unseen.length === 0) return;
-    setItems(unseen.map(e => makeItem(e.de, e.es, '')));
+    // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
+    setItems(unseen.map(e => makeItem(e.de, e.es, '', undefined, 1)));
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
@@ -731,7 +732,7 @@ function Flashcard({
                 className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
               >
                 Easy
-                <span className="block text-[10px] font-normal opacity-80">+2 phases</span>
+                <span className="block text-[10px] font-normal opacity-80">mark known</span>
               </button>
             </div>
           ) : (
