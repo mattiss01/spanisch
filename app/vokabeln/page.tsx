@@ -2,10 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getVocab, processVocabSession, batchUpdateVocabStatus } from '@/lib/storage';
-import { VocabEntry } from '@/lib/types';
+import { getVocab, processVocabSession, batchUpdateVocabStatus, addVocabEntry, getStats, recordExercise } from '@/lib/storage';
+import { VocabEntry, ProgressStats } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { useProfile } from '@/lib/use-profile';
+import StreakBanner from '@/components/StreakBanner';
+
+const DAILY_GOAL = 20;
+
+function isToday(iso?: string): boolean {
+  if (!iso) return false;
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'loading' | 'input' | 'results';
@@ -127,12 +135,24 @@ export default function VokabelnPage() {
   const [hints, setHints] = useState<(string | undefined)[]>([]);
   const [confidence, setConfidence] = useState<Confidence[]>([]);
   const [wordSearch, setWordSearch] = useState('');
+  const [stats, setStats] = useState<ProgressStats | null>(null);
+
+  // Add-your-own-word form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addNative, setAddNative] = useState('');
+  const [addTarget, setAddTarget] = useState('');
+  const [addExample, setAddExample] = useState('');
+  const [addError, setAddError] = useState('');
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
   }, [ready, profile, router]);
 
-  const refresh = useCallback(async () => setVocab(await getVocab()), []);
+  const refresh = useCallback(async () => {
+    const [v, s] = await Promise.all([getVocab(), getStats()]);
+    setVocab(v);
+    setStats(s);
+  }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
   if (!ready || !profile) {
@@ -152,6 +172,8 @@ export default function VokabelnPage() {
 
   const seenWords = new Set(vocab.map(v => norm(v.word)));
   const unseenCount = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es))).length;
+
+  const todayCount = vocab.filter(v => isToday(v.lastReviewed)).length;
 
   function makeItem(de: string, es: string, example: string, vocabId?: string, currentLevel = 0): SessionItem {
     return {
@@ -234,6 +256,34 @@ export default function VokabelnPage() {
           })
       );
     }
+    // Record the session so the daily streak advances (vocab activity counts too).
+    await recordExercise('vocabulary', results.filter(Boolean).length, items.length);
+    await refresh();
+  }
+
+  async function handleAddWord() {
+    setAddError('');
+    const spanish = (direction === 'es_to_de' ? addNative : addTarget).trim();
+    const german = (direction === 'es_to_de' ? addTarget : addNative).trim();
+    if (!spanish || !german) {
+      setAddError('Please fill in both words.');
+      return;
+    }
+    if (seenWords.has(norm(spanish))) {
+      setAddError('That word is already in your list.');
+      return;
+    }
+    await addVocabEntry({
+      word: spanish,
+      translation: german,
+      example: addExample.trim() || undefined,
+      level: 1,
+      nextReview: new Date().toISOString(),
+    });
+    setAddNative('');
+    setAddTarget('');
+    setAddExample('');
+    setShowAddForm(false);
     await refresh();
   }
 
@@ -255,6 +305,8 @@ export default function VokabelnPage() {
             {upcoming.length > 0 && ` · ${upcoming.length} coming up`}
           </p>
         </div>
+
+        <StreakBanner streak={stats?.streak ?? 0} todayCount={todayCount} goal={DAILY_GOAL} />
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
@@ -404,6 +456,55 @@ export default function VokabelnPage() {
         {/* ===== WORDS ===== */}
         {tab === 'words' && (
           <div className="space-y-3">
+            {/* Add-your-own-word */}
+            {!showAddForm ? (
+              <button
+                onClick={() => { setShowAddForm(true); setAddError(''); }}
+                className="w-full py-2.5 border border-dashed border-gray-300 text-gray-500 hover:border-red-400 hover:text-red-600 rounded-xl text-sm font-medium transition-colors"
+              >
+                ＋ Add a word
+              </button>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                <input
+                  type="text"
+                  value={addNative}
+                  onChange={e => setAddNative(e.target.value)}
+                  placeholder={direction === 'es_to_de' ? 'Spanish word' : 'German word'}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+                />
+                <input
+                  type="text"
+                  value={addTarget}
+                  onChange={e => setAddTarget(e.target.value)}
+                  placeholder={direction === 'es_to_de' ? 'German translation' : 'Spanish translation'}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+                />
+                <input
+                  type="text"
+                  value={addExample}
+                  onChange={e => setAddExample(e.target.value)}
+                  placeholder="Example sentence (optional)"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+                />
+                {addError && <p className="text-xs text-red-600">{addError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddWord}
+                    className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    Add word
+                  </button>
+                  <button
+                    onClick={() => { setShowAddForm(false); setAddError(''); }}
+                    className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {vocab.length === 0 ? (
               <div className="text-center py-14">
                 <p className="text-4xl mb-3">📚</p>
