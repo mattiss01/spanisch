@@ -16,7 +16,7 @@ function isToday(iso?: string): boolean {
 }
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
-type Phase = 'idle' | 'loading' | 'input' | 'results';
+type Phase = 'idle' | 'active' | 'done';
 type Confidence = 'sicher' | 'unsicher' | 'bekannt';
 
 interface SessionItem {
@@ -111,15 +111,6 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
   return { correct: false };
 }
 
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function VokabelnPage() {
@@ -128,14 +119,15 @@ export default function VokabelnPage() {
 
   const [tab, setTab] = useState<Tab>('lernen');
   const [vocab, setVocab] = useState<VocabEntry[]>([]);
+  const [stats, setStats] = useState<ProgressStats | null>(null);
+  const [wordSearch, setWordSearch] = useState('');
+
+  // Flashcard session state (one word at a time)
   const [phase, setPhase] = useState<Phase>('idle');
   const [items, setItems] = useState<SessionItem[]>([]);
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [results, setResults] = useState<boolean[]>([]);
-  const [hints, setHints] = useState<(string | undefined)[]>([]);
-  const [confidence, setConfidence] = useState<Confidence[]>([]);
-  const [wordSearch, setWordSearch] = useState('');
-  const [stats, setStats] = useState<ProgressStats | null>(null);
+  const [current, setCurrent] = useState(0);
+  const [doneCount, setDoneCount] = useState(0);
+  const [sessionCorrect, setSessionCorrect] = useState(0);
 
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -143,8 +135,6 @@ export default function VokabelnPage() {
   const [addTarget, setAddTarget] = useState('');
   const [addExample, setAddExample] = useState('');
   const [addError, setAddError] = useState('');
-  const [learnCount, setLearnCount] = useState(20);
-  const [reviewCount, setReviewCount] = useState(20);
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -190,10 +180,9 @@ export default function VokabelnPage() {
   function reset() {
     setPhase('idle');
     setItems([]);
-    setAnswers([]);
-    setResults([]);
-    setHints([]);
-    setConfidence([]);
+    setCurrent(0);
+    setDoneCount(0);
+    setSessionCorrect(0);
   }
 
   function switchTab(t: Tab) {
@@ -203,66 +192,44 @@ export default function VokabelnPage() {
 
   function startLernen() {
     const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
-    const source = unseen.length > 0 ? unseen.slice(0, learnCount) : shuffle(VOCAB_CATALOG).slice(0, learnCount);
-    const sessionItems = source.map(e => makeItem(e.de, e.es, ''));
-    setItems(sessionItems);
-    setAnswers(sessionItems.map(() => ''));
-    setResults([]);
-    setHints([]);
-    setConfidence([]);
-    setPhase('input');
+    if (unseen.length === 0) return;
+    setItems(unseen.map(e => makeItem(e.de, e.es, '')));
+    setCurrent(0);
+    setDoneCount(0);
+    setSessionCorrect(0);
+    setPhase('active');
   }
 
   function startWiederholen() {
-    const wItems = dueToday.slice(0, reviewCount).map(v =>
-      makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))
-    );
-    setItems(wItems);
-    setAnswers(wItems.map(() => ''));
-    setResults([]);
-    setHints([]);
-    setPhase('input');
+    if (dueToday.length === 0) return;
+    setItems(dueToday.map(v => makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))));
+    setCurrent(0);
+    setDoneCount(0);
+    setSessionCorrect(0);
+    setPhase('active');
   }
 
-  function submit() {
-    const checked = items.map((item, i) => checkAnswer(answers[i], item.answer));
-    setResults(checked.map(c => c.correct));
-    setHints(checked.map(c => c.accentHint));
-    setConfidence(checked.map(c => (c.correct ? 'sicher' : 'sicher')));
-    setPhase('results');
-  }
+  // Save one rated word immediately, then advance to the next (or finish).
+  async function handleRate(correct: boolean, conf: Confidence) {
+    const item = items[current];
+    const newLevel = computeNewLevel(item.currentLevel, correct, conf);
+    const nr = nextReviewDate(newLevel, correct, conf);
 
-  async function saveResults(conf: Confidence[]) {
     if (tab === 'lernen') {
-      await processVocabSession(
-        items.map((item, i) => {
-          const newLevel = computeNewLevel(item.currentLevel, results[i], conf[i]);
-          return {
-            word: item.es,
-            translation: item.de,
-            example: item.example,
-            level: newLevel,
-            nextReview: nextReviewDate(newLevel, results[i], conf[i]),
-          };
-        })
-      );
-    } else {
-      await batchUpdateVocabStatus(
-        items
-          .filter(item => item.vocabId)
-          .map((item, i) => {
-            const newLevel = computeNewLevel(item.currentLevel, results[i], conf[i]);
-            return {
-              id: item.vocabId!,
-              level: newLevel,
-              nextReview: nextReviewDate(newLevel, results[i], conf[i]),
-            };
-          })
-      );
+      await processVocabSession([
+        { word: item.es, translation: item.de, example: item.example, level: newLevel, nextReview: nr },
+      ]);
+    } else if (item.vocabId) {
+      await batchUpdateVocabStatus([{ id: item.vocabId, level: newLevel, nextReview: nr }]);
     }
-    // Record the session so the daily streak advances (vocab activity counts too).
-    await recordExercise('vocabulary', results.filter(Boolean).length, items.length);
-    await refresh();
+    await recordExercise('vocabulary', correct ? 1 : 0, 1);
+
+    setDoneCount(d => d + 1);
+    if (correct) setSessionCorrect(c => c + 1);
+    refresh(); // update banner/counts in the background
+
+    if (current + 1 >= items.length) setPhase('done');
+    else setCurrent(c => c + 1);
   }
 
   async function handleAddWord() {
@@ -291,7 +258,6 @@ export default function VokabelnPage() {
     await refresh();
   }
 
-  const correctCount = results.filter(Boolean).length;
   const wordsFiltered = vocab.filter(
     v =>
       !wordSearch ||
@@ -349,6 +315,52 @@ export default function VokabelnPage() {
     )
   );
 
+  // Shared session view (active flashcard or completion summary) for both tabs.
+  const sessionView =
+    phase === 'active' && items[current] ? (
+      <Flashcard
+        key={current}
+        item={items[current]}
+        answerPlaceholder={answerLang}
+        position={current + 1}
+        total={items.length}
+        onRate={handleRate}
+        onFinish={() => setPhase('done')}
+      />
+    ) : phase === 'done' ? (
+      <div className="bg-white rounded-xl border border-gray-200 p-6 text-center space-y-3">
+        <p className="text-4xl">🎉</p>
+        <p className="font-semibold text-gray-900">Session complete</p>
+        <p className="text-sm text-gray-500">
+          {sessionCorrect} / {doneCount} correct
+        </p>
+        <div className="flex gap-2 justify-center pt-1">
+          <button
+            onClick={reset}
+            className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
+          >
+            Done
+          </button>
+          {tab === 'lernen' && unseenCount > 0 && (
+            <button
+              onClick={startLernen}
+              className="px-4 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              Keep learning →
+            </button>
+          )}
+          {tab === 'wiederholen' && dueToday.length > 0 && (
+            <button
+              onClick={startWiederholen}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              Keep reviewing →
+            </button>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   return (
     <main className="md:ml-56 min-h-screen bg-gray-50 pb-24 md:pb-8">
       <div className="max-w-xl mx-auto p-5 space-y-5">
@@ -401,63 +413,37 @@ export default function VokabelnPage() {
         {/* ===== LEARN ===== */}
         {tab === 'lernen' && (
           <div className="space-y-4">
-            {phase === 'idle' && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    New words from the catalog.
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {unseenCount > 0
-                      ? `${unseenCount} of ${VOCAB_CATALOG.length} words not seen yet`
-                      : `All ${VOCAB_CATALOG.length} catalog words already seen`}
-                  </p>
-                  {VOCAB_CATALOG.length > 0 && (
-                    <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{ width: `${Math.round((vocab.length / VOCAB_CATALOG.length) * 100)}%` }}
-                      />
-                    </div>
-                  )}
+            {phase === 'idle' ? (
+              <>
+                <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Learn new words one at a time.</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {unseenCount > 0
+                        ? `${unseenCount} of ${VOCAB_CATALOG.length} words not seen yet`
+                        : `All ${VOCAB_CATALOG.length} catalog words already seen 🎉`}
+                    </p>
+                    {VOCAB_CATALOG.length > 0 && (
+                      <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full"
+                          style={{ width: `${Math.round((vocab.length / VOCAB_CATALOG.length) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={startLernen}
+                    disabled={unseenCount === 0}
+                    className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-semibold transition-colors"
+                  >
+                    {unseenCount > 0 ? 'Start learning →' : 'All words learned'}
+                  </button>
                 </div>
-                <CountPicker
-                  label="How many words?"
-                  value={learnCount}
-                  onChange={setLearnCount}
-                  max={unseenCount > 0 ? unseenCount : VOCAB_CATALOG.length}
-                />
-                <button
-                  onClick={startLernen}
-                  className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
-                >
-                  Start round →
-                </button>
-              </div>
-            )}
-
-            {phase === 'idle' && addWordSection}
-
-            {(phase === 'input' || phase === 'results') && (
-              <SessionPanel
-                items={items}
-                answers={answers}
-                results={results}
-                hints={hints}
-                confidence={confidence}
-                phase={phase}
-                correctCount={correctCount}
-                answerPlaceholder={answerLang}
-                onAnswerChange={(i, v) =>
-                  setAnswers(prev => { const n = [...prev]; n[i] = v; return n; })
-                }
-                onConfidenceChange={(i, v) =>
-                  setConfidence(prev => { const n = [...prev]; n[i] = v; return n; })
-                }
-                onSubmit={submit}
-                onSave={saveResults}
-                onReset={reset}
-              />
+                {addWordSection}
+              </>
+            ) : (
+              sessionView
             )}
           </div>
         )}
@@ -465,8 +451,8 @@ export default function VokabelnPage() {
         {/* ===== REVIEW ===== */}
         {tab === 'wiederholen' && (
           <div className="space-y-4">
-            {phase === 'idle' &&
-              (dueToday.length === 0 ? (
+            {phase === 'idle' ? (
+              dueToday.length === 0 ? (
                 <div className="text-center py-14">
                   <p className="text-4xl mb-3">🎉</p>
                   <p className="text-sm font-medium text-gray-500">No words due today!</p>
@@ -479,14 +465,8 @@ export default function VokabelnPage() {
               ) : (
                 <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                   <p className="text-sm text-gray-600">
-                    You have <strong>{dueToday.length}</strong> words due today.
+                    <strong>{dueToday.length}</strong> words due today. Review them one at a time.
                   </p>
-                  <CountPicker
-                    label="How many to review?"
-                    value={reviewCount}
-                    onChange={setReviewCount}
-                    max={dueToday.length}
-                  />
                   <button
                     onClick={startWiederholen}
                     className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-colors"
@@ -494,28 +474,9 @@ export default function VokabelnPage() {
                     Start review →
                   </button>
                 </div>
-              ))}
-
-            {(phase === 'input' || phase === 'results') && (
-              <SessionPanel
-                items={items}
-                answers={answers}
-                results={results}
-                hints={hints}
-                confidence={confidence}
-                phase={phase}
-                correctCount={correctCount}
-                answerPlaceholder={answerLang}
-                onAnswerChange={(i, v) =>
-                  setAnswers(prev => { const n = [...prev]; n[i] = v; return n; })
-                }
-                onConfidenceChange={(i, v) =>
-                  setConfidence(prev => { const n = [...prev]; n[i] = v; return n; })
-                }
-                onSubmit={submit}
-                onSave={saveResults}
-                onReset={reset}
-              />
+              )
+            ) : (
+              sessionView
             )}
           </div>
         )}
@@ -580,7 +541,7 @@ export default function VokabelnPage() {
                             </p>
                           )}
                           {entry.example && (
-                            <p className="text-gray-400 text-xs mt-0.5 italic">"{entry.example}"</p>
+                            <p className="text-gray-400 text-xs mt-0.5 italic">&bdquo;{entry.example}&ldquo;</p>
                           )}
                         </div>
                       </div>
@@ -596,256 +557,145 @@ export default function VokabelnPage() {
   );
 }
 
-// ─── SessionPanel ────────────────────────────────────────────────────────────
+// ─── Flashcard (one word at a time) ────────────────────────────────────────────
 
-interface SessionPanelProps {
-  items: SessionItem[];
-  answers: string[];
-  results: boolean[];
-  hints: (string | undefined)[];
-  confidence: Confidence[];
-  phase: Phase;
-  correctCount: number;
-  answerPlaceholder: string;
-  onAnswerChange: (index: number, value: string) => void;
-  onConfidenceChange: (index: number, value: Confidence) => void;
-  onSubmit: () => void;
-  onSave: (confidence: Confidence[]) => Promise<void>;
-  onReset: () => void;
-}
-
-function SessionPanel({
-  items,
-  answers,
-  results,
-  hints,
-  confidence,
-  phase,
-  correctCount,
+function Flashcard({
+  item,
   answerPlaceholder,
-  onAnswerChange,
-  onConfidenceChange,
-  onSubmit,
-  onSave,
-  onReset,
-}: SessionPanelProps) {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const bekanntOverrideCount = confidence.filter((c, i) => results[i] && c === 'bekannt').length;
-  const unsicherCount = confidence.filter((c, i) => results[i] && c === 'unsicher').length;
-  const toRepeat = results.filter(r => !r).length + unsicherCount;
+  position,
+  total,
+  onRate,
+  onFinish,
+}: {
+  item: SessionItem;
+  answerPlaceholder: string;
+  position: number;
+  total: number;
+  onRate: (correct: boolean, conf: Confidence) => void | Promise<void>;
+  onFinish: () => void;
+}) {
+  const [answer, setAnswer] = useState('');
+  const [checked, setChecked] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
+    inputRef.current?.focus();
   }, []);
 
+  const evaluation = checked ? checkAnswer(answer, item.answer) : null;
+  const correct = evaluation?.correct ?? false;
+
+  async function rate(conf: Confidence) {
+    if (saving) return;
+    setSaving(true);
+    await onRate(correct, conf);
+    // component is remounted (key changes) on advance; no local reset needed
+  }
+
   return (
-    <div className="space-y-4">
-      {phase === 'results' && (
-        <div
-          className={`p-4 rounded-xl font-semibold ${
-            correctCount === items.length
-              ? 'bg-green-100 text-green-800'
-              : correctCount >= Math.ceil(items.length * 0.7)
-              ? 'bg-amber-50 text-amber-800'
-              : 'bg-red-50 text-red-800'
-          }`}
-        >
-          <p className="text-center text-lg">
-            {correctCount}/{items.length} correct
-            {correctCount === items.length && ' 🎉'}
-          </p>
-          <p className="text-center text-xs font-normal mt-1 opacity-70">
-            {toRepeat} to review · {toKeep(results, confidence)} level up
-            {bekanntOverrideCount > 0 && ` · ${bekanntOverrideCount} directly known`}
-          </p>
-          <p className="text-center text-xs font-normal mt-2 opacity-60">
-            Correct answers: <strong>Unsure</strong> to review again, <strong>Known</strong> to hide immediately
-          </p>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {items.map((item, i) => {
-          const ok = results[i] === true;
-          const wrong = phase === 'results' && results[i] === false;
-          const conf = confidence[i];
-          const hint = hints[i];
-          return (
-            <div
-              key={i}
-              className={`flex flex-col gap-1 px-3 py-2.5 border-b border-gray-50 last:border-b-0 ${
-                phase === 'results'
-                  ? conf === 'bekannt' && ok
-                    ? 'bg-green-100'
-                    : ok && conf === 'unsicher'
-                    ? 'bg-amber-50'
-                    : ok
-                    ? 'bg-green-50'
-                    : wrong
-                    ? 'bg-red-50'
-                    : ''
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-4 shrink-0 tabular-nums">{i + 1}.</span>
-                <span className="text-xs font-medium text-gray-700 w-28 shrink-0 leading-tight">
-                  {item.question}
-                </span>
-                <input
-                  ref={el => { inputRefs.current[i] = el; }}
-                  type="text"
-                  value={answers[i]}
-                  disabled={phase === 'results'}
-                  onChange={e => onAnswerChange(i, e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      if (i < items.length - 1) inputRefs.current[i + 1]?.focus();
-                      else onSubmit();
-                    }
-                  }}
-                  placeholder={answerPlaceholder}
-                  className={`flex-1 min-w-0 border-b bg-transparent text-sm py-0.5 outline-none transition-colors disabled:opacity-100 ${
-                    phase === 'results' && ok && conf === 'bekannt'
-                      ? 'border-green-500 text-green-800'
-                      : phase === 'results' && ok && conf === 'unsicher'
-                      ? 'border-amber-400 text-amber-700'
-                      : ok
-                      ? 'border-green-400 text-green-700'
-                      : wrong
-                      ? 'border-red-400 text-red-600'
-                      : 'border-gray-300 focus:border-red-600 text-gray-900'
-                  }`}
-                />
-
-                {wrong && (
-                  <span className="text-xs text-green-700 font-semibold shrink-0">{item.answer}</span>
-                )}
-
-                {phase === 'results' && ok && (
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      onClick={() => onConfidenceChange(i, 'unsicher')}
-                      className={`text-xs px-2 py-0.5 rounded-lg transition-colors ${
-                        conf === 'unsicher'
-                          ? 'bg-amber-400 text-white'
-                          : 'bg-gray-100 text-gray-400 hover:bg-amber-100 hover:text-amber-700'
-                      }`}
-                    >
-                      Unsure
-                    </button>
-                    <button
-                      onClick={() => onConfidenceChange(i, 'sicher')}
-                      className={`text-xs px-2 py-0.5 rounded-lg transition-colors ${
-                        conf === 'sicher'
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-700'
-                      }`}
-                    >
-                      Sure
-                    </button>
-                    <button
-                      onClick={() => onConfidenceChange(i, 'bekannt')}
-                      className={`text-xs px-2 py-0.5 rounded-lg transition-colors ${
-                        conf === 'bekannt'
-                          ? 'bg-green-700 text-white'
-                          : 'bg-gray-100 text-gray-400 hover:bg-green-50 hover:text-green-800'
-                      }`}
-                    >
-                      Known ✓
-                    </button>
-                  </div>
-                )}
-
-                {wrong && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md shrink-0">
-                    ↩
-                  </span>
-                )}
-              </div>
-
-              {phase === 'results' && ok && hint && (
-                <p className="text-xs text-blue-600 pl-[calc(1rem+7rem+0.5rem)] pb-0.5">
-                  Tip: with accent → <span className="font-semibold">{hint}</span>
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {phase === 'input' ? (
-        <button
-          onClick={onSubmit}
-          className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
-        >
-          Check
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+      {/* Progress header */}
+      <div className="flex items-center justify-between text-xs text-gray-400">
+        <span className="tabular-nums">{position} / {total}</span>
+        <button onClick={onFinish} className="hover:text-gray-600 transition-colors">
+          Finish
         </button>
-      ) : (
-        <div className="flex gap-2">
-          <button
-            onClick={async () => { await onSave(confidence); onReset(); }}
-            className="flex-1 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-sm font-semibold transition-colors"
-          >
-            Save & Done
-          </button>
-          <button
-            onClick={async () => { await onSave(confidence); onReset(); }}
-            className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
-          >
-            New round →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function toKeep(results: boolean[], confidence: Confidence[]): number {
-  return results.filter((r, i) => r && confidence[i] === 'sicher').length;
-}
-
-// ─── CountPicker ───────────────────────────────────────────────────────────────
-
-function CountPicker({
-  label,
-  value,
-  onChange,
-  max,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  max: number;
-}) {
-  if (max <= 0) return null;
-  const presets = [5, 10, 20, 30].filter(n => n < max);
-  const options = [...presets, max]; // last option = "All"
-  const effective = Math.min(value, max);
-
-  return (
-    <div>
-      <p className="text-xs text-gray-400 mb-1.5">{label}</p>
-      <div className="flex gap-1.5 flex-wrap">
-        {options.map((n, i) => {
-          const isAll = i === options.length - 1;
-          const active = effective === n;
-          return (
-            <button
-              key={n}
-              onClick={() => onChange(n)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-red-700 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {isAll ? `All (${max})` : n}
-            </button>
-          );
-        })}
       </div>
+      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-red-600 rounded-full transition-all"
+          style={{ width: `${Math.round((position / total) * 100)}%` }}
+        />
+      </div>
+
+      {/* Question */}
+      <div className="text-center py-3">
+        <p className="text-xs text-gray-400 uppercase tracking-wide">Translate</p>
+        <p className="text-3xl font-bold text-gray-900 mt-1">{item.question}</p>
+      </div>
+
+      {!checked ? (
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') setChecked(true); }}
+            placeholder={answerPlaceholder}
+            className="w-full border-b-2 border-gray-300 focus:border-red-600 bg-transparent text-lg text-center py-1.5 outline-none transition-colors"
+          />
+          <button
+            onClick={() => setChecked(true)}
+            className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
+          >
+            Check
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Result */}
+          <div
+            className={`rounded-xl p-4 text-center ${
+              correct ? 'bg-green-50' : 'bg-red-50'
+            }`}
+          >
+            <p className={`text-lg font-bold ${correct ? 'text-green-700' : 'text-red-600'}`}>
+              {correct ? '✓ Correct' : '✗ Not quite'}
+            </p>
+            {!correct && (
+              <p className="text-sm text-gray-600 mt-1">
+                Your answer: <span className="line-through">{answer || '—'}</span>
+              </p>
+            )}
+            <p className="text-base font-semibold text-gray-900 mt-1">{item.answer}</p>
+            {evaluation?.accentHint && correct && (
+              <p className="text-xs text-blue-600 mt-1">
+                Tip: with accent → <span className="font-semibold">{evaluation.accentHint}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Rating */}
+          {correct ? (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => rate('unsicher')}
+                disabled={saving}
+                className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+              >
+                Hard
+                <span className="block text-[10px] font-normal opacity-70">again tomorrow</span>
+              </button>
+              <button
+                onClick={() => rate('sicher')}
+                disabled={saving}
+                className="py-2.5 rounded-xl text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 transition-colors"
+              >
+                Good
+                <span className="block text-[10px] font-normal opacity-70">level up</span>
+              </button>
+              <button
+                onClick={() => rate('bekannt')}
+                disabled={saving}
+                className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                Easy
+                <span className="block text-[10px] font-normal opacity-80">mark known</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => rate('sicher')}
+              disabled={saving}
+              className="w-full py-3 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors"
+            >
+              Continue →
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
