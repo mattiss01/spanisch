@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getVocab, updateVocabStatus, processVocabSession, batchUpdateVocabStatus } from '@/lib/storage';
+import { getVocab, processVocabSession, batchUpdateVocabStatus } from '@/lib/storage';
 import { VocabEntry } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { useProfile } from '@/lib/use-profile';
 
-type Tab = 'lernen' | 'wiederholen' | 'bekannt';
+type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'loading' | 'input' | 'results';
 type Confidence = 'sicher' | 'unsicher' | 'bekannt';
 
@@ -107,7 +107,7 @@ export default function VokabelnPage() {
   const [results, setResults] = useState<boolean[]>([]);
   const [hints, setHints] = useState<(string | undefined)[]>([]);
   const [confidence, setConfidence] = useState<Confidence[]>([]);
-  const [search, setSearch] = useState('');
+  const [wordSearch, setWordSearch] = useState('');
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -219,11 +219,11 @@ export default function VokabelnPage() {
   }
 
   const correctCount = results.filter(Boolean).length;
-  const bekanntFiltered = bekanntWords.filter(
+  const wordsFiltered = vocab.filter(
     v =>
-      !search ||
-      v.word.toLowerCase().includes(search.toLowerCase()) ||
-      v.translation.toLowerCase().includes(search.toLowerCase())
+      !wordSearch ||
+      v.word.toLowerCase().includes(wordSearch.toLowerCase()) ||
+      v.translation.toLowerCase().includes(wordSearch.toLowerCase())
   );
 
   return (
@@ -258,7 +258,7 @@ export default function VokabelnPage() {
             [
               ['lernen', 'Learn'],
               ['wiederholen', dueToday.length > 0 ? `Review (${dueToday.length})` : 'Review'],
-              ['bekannt', bekanntWords.length > 0 ? `Known (${bekanntWords.length})` : 'Known'],
+              ['words', vocab.length > 0 ? `Words (${vocab.length})` : 'Words'],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button
@@ -291,7 +291,7 @@ export default function VokabelnPage() {
                     <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 rounded-full"
-                        style={{ width: `${Math.round((bekanntWords.length / VOCAB_CATALOG.length) * 100)}%` }}
+                        style={{ width: `${Math.round((vocab.length / VOCAB_CATALOG.length) * 100)}%` }}
                       />
                     </div>
                   )}
@@ -382,55 +382,70 @@ export default function VokabelnPage() {
           </div>
         )}
 
-        {/* ===== KNOWN ===== */}
-        {tab === 'bekannt' && (
+        {/* ===== WORDS ===== */}
+        {tab === 'words' && (
           <div className="space-y-3">
-            {bekanntWords.length === 0 ? (
+            {vocab.length === 0 ? (
               <div className="text-center py-14">
                 <p className="text-4xl mb-3">📚</p>
                 <p className="text-sm text-gray-400">
-                  No known words yet. Start a learning round!
+                  No words seen yet. Start a learning round!
                 </p>
               </div>
             ) : (
               <>
                 <input
                   type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  value={wordSearch}
+                  onChange={e => setWordSearch(e.target.value)}
                   placeholder="Search…"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
                 />
-                <p className="text-xs text-gray-400">{bekanntFiltered.length} words</p>
+                <p className="text-xs text-gray-400">{wordsFiltered.length} words seen</p>
                 <div className="space-y-2">
-                  {bekanntFiltered.map(entry => (
-                    <div
-                      key={entry.id}
-                      className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-start gap-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">
-                          {direction === 'es_to_de' ? entry.word : entry.translation}
-                        </p>
-                        <p className="text-gray-500 text-sm">
-                          {direction === 'es_to_de' ? entry.translation : entry.word}
-                        </p>
-                        {entry.example && (
-                          <p className="text-gray-400 text-xs mt-0.5 italic">„{entry.example}"</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={async () => {
-                          await updateVocabStatus(entry.id, false);
-                          await refresh();
-                        }}
-                        title="Back to review"
-                        className="text-gray-300 hover:text-amber-500 transition-colors text-lg shrink-0"
+                  {wordsFiltered.map(entry => {
+                    const level = getLevel(entry);
+                    const levelLabels = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Known'];
+                    const levelColors = [
+                      '',
+                      'bg-red-100 text-red-700',
+                      'bg-orange-100 text-orange-700',
+                      'bg-amber-100 text-amber-700',
+                      'bg-blue-100 text-blue-700',
+                      'bg-green-100 text-green-700',
+                    ];
+                    const reviewDate = entry.nextReview
+                      ? new Date(entry.nextReview).toLocaleDateString()
+                      : null;
+                    return (
+                      <div
+                        key={entry.id}
+                        className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-start gap-3"
                       >
-                        ↩
-                      </button>
-                    </div>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-gray-900 text-sm">
+                              {direction === 'es_to_de' ? entry.word : entry.translation}
+                            </p>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${levelColors[level]}`}>
+                              {levelLabels[level]}
+                            </span>
+                          </div>
+                          <p className="text-gray-500 text-sm">
+                            {direction === 'es_to_de' ? entry.translation : entry.word}
+                          </p>
+                          {level < 5 && reviewDate && (
+                            <p className="text-gray-400 text-xs mt-0.5">
+                              Next review: {reviewDate}
+                            </p>
+                          )}
+                          {entry.example && (
+                            <p className="text-gray-400 text-xs mt-0.5 italic">"{entry.example}"</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}

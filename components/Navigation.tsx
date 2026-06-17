@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/use-profile';
 const nav = [
   { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
   { href: '/konjugation', label: 'Verbs', icon: '🔤' },
+  { href: '/help', label: 'Help', icon: '❓' },
 ];
 
 export default function Navigation() {
