@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { getConjugationRecords, recordExercise } from '@/lib/storage';
 import { ConjugationRecord, ConjugationExercise } from '@/lib/types';
 import Conjugation from '@/components/exercises/Conjugation';
 import { VERB_CATALOG } from '@/lib/verb-catalog';
+import { VERB_CATALOG_DE } from '@/lib/verb-catalog-de';
+import { useProfile } from '@/lib/use-profile';
 
 type Tab = 'lernen' | 'all' | 'mistakes';
 
@@ -35,6 +38,9 @@ function TotalBar({ record }: { record: ConjugationRecord }) {
 }
 
 export default function KonjugationPage() {
+  const { profile, ready } = useProfile();
+  const router = useRouter();
+
   const [records, setRecords] = useState<ConjugationRecord[]>([]);
   const [tab, setTab] = useState<Tab>('lernen');
   const [practicing, setPracticing] = useState<string | null>(null);
@@ -43,9 +49,23 @@ export default function KonjugationPage() {
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const refresh = useCallback(async () => setRecords(await getConjugationRecords()), []);
+  useEffect(() => {
+    if (ready && !profile) router.push('/profile');
+  }, [ready, profile, router]);
 
+  const refresh = useCallback(async () => setRecords(await getConjugationRecords()), []);
   useEffect(() => { refresh(); }, [refresh]);
+
+  if (!ready || !profile) {
+    return (
+      <main className="md:ml-56 min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Laden…</p>
+      </main>
+    );
+  }
+
+  const direction = profile.direction;
+  const catalog = direction === 'es_to_de' ? VERB_CATALOG_DE : VERB_CATALOG;
 
   const withMistakes = records.filter(r =>
     r.sections.some(s => s.recentMistakes.length > 0)
@@ -54,7 +74,7 @@ export default function KonjugationPage() {
   const mastered = records.filter(r => r.mastered).length;
 
   const learnedVerbs = new Set(records.map(r => r.verb.toLowerCase()));
-  const unseenCount = VERB_CATALOG.filter(v => !learnedVerbs.has(v.infinitive.toLowerCase())).length;
+  const unseenCount = catalog.filter(v => !learnedVerbs.has(v.infinitive.toLowerCase())).length;
 
   async function startNew() {
     setPracticing('__new__');
@@ -66,7 +86,7 @@ export default function KonjugationPage() {
       const res = await fetch('/api/exercise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'conjugation', knownVerbs }),
+        body: JSON.stringify({ type: 'conjugation', knownVerbs, language: direction }),
       });
       const data = await res.json();
       if (data.error) setError(data.error);
@@ -103,9 +123,8 @@ export default function KonjugationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'conjugation',
-          topic: '',
-          difficulty: 'B1',
           verb: record.verb,
+          language: direction,
         }),
       });
       const data = await res.json();
@@ -177,16 +196,16 @@ export default function KonjugationPage() {
             <div>
               <p className="text-sm text-gray-500">
                 <span className="font-semibold text-gray-800">{unseenCount}</span> von{' '}
-                <span className="font-semibold text-gray-800">{VERB_CATALOG.length}</span> Verben noch nicht geübt
+                <span className="font-semibold text-gray-800">{catalog.length}</span> Verben noch nicht geübt
               </p>
               <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-red-600 rounded-full transition-all"
-                  style={{ width: `${Math.round(((VERB_CATALOG.length - unseenCount) / VERB_CATALOG.length) * 100)}%` }}
+                  style={{ width: `${Math.round(((catalog.length - unseenCount) / catalog.length) * 100)}%` }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {VERB_CATALOG.length - unseenCount} gelernt · {mastered} gemeistert
+                {catalog.length - unseenCount} gelernt · {mastered} gemeistert
               </p>
             </div>
 
@@ -342,7 +361,7 @@ export default function KonjugationPage() {
                   <div className="border-t border-gray-100 p-4">
                     {loading && (
                       <p className="text-center text-sm text-gray-400 animate-pulse py-6">
-                        Übung wird generiert…
+                        Übung wird geladen…
                       </p>
                     )}
                     {error && (

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { getVocab, updateVocabStatus, processVocabSession, batchUpdateVocabStatus } from '@/lib/storage';
 import { VocabEntry } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
+import { useProfile } from '@/lib/use-profile';
 
 type Tab = 'lernen' | 'wiederholen' | 'bekannt';
 type Phase = 'idle' | 'loading' | 'input' | 'results';
@@ -15,6 +17,8 @@ interface SessionItem {
   example: string;
   vocabId?: string;
   currentLevel: number;
+  question: string;   // label shown to user
+  answer: string;     // correct answer expected from user
 }
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
@@ -40,9 +44,8 @@ function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidenc
 
 function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
   if (newLevel >= 5) return '';
-  if (!correct) return new Date().toISOString(); // failed → show again immediately
+  if (!correct) return new Date().toISOString();
   if (conf === 'unsicher') {
-    // Not confident → review again tomorrow
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString();
@@ -59,7 +62,7 @@ function norm(s: string): string {
   return s
     .toLowerCase()
     .trim()
-    .replace(/^(el|la|los|las|un|una|unos|unas)\s+/i, '')
+    .replace(/^(el|la|los|las|un|una|unos|unas|der|die|das|ein|eine|einen|einem|einer)\s+/i, '')
     .replace(/\s*\(.*?\)\s*/g, '')
     .trim();
 }
@@ -95,6 +98,9 @@ function shuffle<T>(arr: T[]): T[] {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function VokabelnPage() {
+  const { profile, ready } = useProfile();
+  const router = useRouter();
+
   const [tab, setTab] = useState<Tab>('lernen');
   const [vocab, setVocab] = useState<VocabEntry[]>([]);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -105,8 +111,23 @@ export default function VokabelnPage() {
   const [confidence, setConfidence] = useState<Confidence[]>([]);
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    if (ready && !profile) router.push('/profile');
+  }, [ready, profile, router]);
+
   const refresh = useCallback(async () => setVocab(await getVocab()), []);
   useEffect(() => { refresh(); }, [refresh]);
+
+  if (!ready || !profile) {
+    return (
+      <main className="md:ml-56 min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Laden…</p>
+      </main>
+    );
+  }
+
+  const direction = profile.direction;
+  const answerLang = direction === 'es_to_de' ? 'Deutsch…' : 'Spanisch…';
 
   const bekanntWords = vocab.filter(v => getLevel(v) === 5);
   const dueToday = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && isDue(v.nextReview); });
@@ -114,6 +135,14 @@ export default function VokabelnPage() {
 
   const seenWords = new Set(vocab.map(v => norm(v.word)));
   const unseenCount = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es))).length;
+
+  function makeItem(de: string, es: string, example: string, vocabId?: string, currentLevel = 0): SessionItem {
+    return {
+      de, es, example, vocabId, currentLevel,
+      question: direction === 'es_to_de' ? es : de,
+      answer:   direction === 'es_to_de' ? de : es,
+    };
+  }
 
   function reset() {
     setPhase('idle');
@@ -132,7 +161,7 @@ export default function VokabelnPage() {
   function startLernen() {
     const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
     const source = unseen.length > 0 ? unseen.slice(0, 20) : shuffle(VOCAB_CATALOG).slice(0, 20);
-    const sessionItems = source.map(e => ({ de: e.de, es: e.es, example: '', currentLevel: 0 }));
+    const sessionItems = source.map(e => makeItem(e.de, e.es, ''));
     setItems(sessionItems);
     setAnswers(sessionItems.map(() => ''));
     setResults([]);
@@ -142,13 +171,9 @@ export default function VokabelnPage() {
   }
 
   function startWiederholen() {
-    const wItems = dueToday.slice(0, 20).map(v => ({
-      de: v.translation,
-      es: v.word,
-      example: v.example ?? '',
-      vocabId: v.id,
-      currentLevel: getLevel(v),
-    }));
+    const wItems = dueToday.slice(0, 20).map(v =>
+      makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))
+    );
     setItems(wItems);
     setAnswers(wItems.map(() => ''));
     setResults([]);
@@ -157,10 +182,10 @@ export default function VokabelnPage() {
   }
 
   function submit() {
-    const checked = items.map((item, i) => checkAnswer(answers[i], item.es));
+    const checked = items.map((item, i) => checkAnswer(answers[i], item.answer));
     setResults(checked.map(c => c.correct));
     setHints(checked.map(c => c.accentHint));
-    setConfidence(checked.map(c => c.correct ? 'sicher' : 'sicher')); // all default to sicher; user adjusts
+    setConfidence(checked.map(c => (c.correct ? 'sicher' : 'sicher')));
     setPhase('results');
   }
 
@@ -291,6 +316,7 @@ export default function VokabelnPage() {
                 confidence={confidence}
                 phase={phase}
                 correctCount={correctCount}
+                answerPlaceholder={answerLang}
                 onAnswerChange={(i, v) =>
                   setAnswers(prev => { const n = [...prev]; n[i] = v; return n; })
                 }
@@ -343,6 +369,7 @@ export default function VokabelnPage() {
                 confidence={confidence}
                 phase={phase}
                 correctCount={correctCount}
+                answerPlaceholder={answerLang}
                 onAnswerChange={(i, v) =>
                   setAnswers(prev => { const n = [...prev]; n[i] = v; return n; })
                 }
@@ -384,8 +411,12 @@ export default function VokabelnPage() {
                       className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-start gap-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">{entry.word}</p>
-                        <p className="text-gray-500 text-sm">{entry.translation}</p>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {direction === 'es_to_de' ? entry.word : entry.translation}
+                        </p>
+                        <p className="text-gray-500 text-sm">
+                          {direction === 'es_to_de' ? entry.translation : entry.word}
+                        </p>
                         {entry.example && (
                           <p className="text-gray-400 text-xs mt-0.5 italic">„{entry.example}"</p>
                         )}
@@ -422,6 +453,7 @@ interface SessionPanelProps {
   confidence: Confidence[];
   phase: Phase;
   correctCount: number;
+  answerPlaceholder: string;
   onAnswerChange: (index: number, value: string) => void;
   onConfidenceChange: (index: number, value: Confidence) => void;
   onSubmit: () => void;
@@ -437,6 +469,7 @@ function SessionPanel({
   confidence,
   phase,
   correctCount,
+  answerPlaceholder,
   onAnswerChange,
   onConfidenceChange,
   onSubmit,
@@ -449,8 +482,6 @@ function SessionPanel({
   const bekanntOverrideCount = confidence.filter((c, i) => results[i] && c === 'bekannt').length;
   const unsicherCount = confidence.filter((c, i) => results[i] && c === 'unsicher').length;
   const toRepeat = results.filter(r => !r).length + unsicherCount;
-  const toBeKannt = correctCount - unsicherCount - bekanntOverrideCount;
-  const toDirectBeKannt = bekanntOverrideCount + (results.filter((r, i) => r && confidence[i] === 'bekannt').length - bekanntOverrideCount);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -507,7 +538,9 @@ function SessionPanel({
             >
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 w-4 shrink-0 tabular-nums">{i + 1}.</span>
-                <span className="text-xs font-medium text-gray-700 w-28 shrink-0 leading-tight">{item.de}</span>
+                <span className="text-xs font-medium text-gray-700 w-28 shrink-0 leading-tight">
+                  {item.question}
+                </span>
                 <input
                   ref={el => { inputRefs.current[i] = el; }}
                   type="text"
@@ -520,7 +553,7 @@ function SessionPanel({
                       else if (allFilled) onSubmit();
                     }
                   }}
-                  placeholder="Spanisch…"
+                  placeholder={answerPlaceholder}
                   className={`flex-1 min-w-0 border-b bg-transparent text-sm py-0.5 outline-none transition-colors disabled:opacity-100 ${
                     phase === 'results' && ok && conf === 'bekannt'
                       ? 'border-green-500 text-green-800'
@@ -535,7 +568,7 @@ function SessionPanel({
                 />
 
                 {wrong && (
-                  <span className="text-xs text-green-700 font-semibold shrink-0">{item.es}</span>
+                  <span className="text-xs text-green-700 font-semibold shrink-0">{item.answer}</span>
                 )}
 
                 {phase === 'results' && ok && (

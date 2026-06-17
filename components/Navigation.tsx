@@ -2,31 +2,38 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useProfile } from '@/lib/use-profile';
 
 const nav = [
   { href: '/vokabeln', label: 'Vokabeln', icon: '📖' },
   { href: '/konjugation', label: 'Verben', icon: '🔤' },
-  { href: '/uebungen', label: 'Übungen', icon: '✏️' },
 ];
 
 export default function Navigation() {
   const path = usePathname();
+  const { profile } = useProfile();
+
+  const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
+  const subtitle = profile?.direction === 'es_to_de' ? 'Español → Deutsch' : 'Deutsch → Español';
 
   return (
     <>
+      {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-56 bg-white border-r border-gray-100 z-50">
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🇪🇸</span>
+            <span className="text-2xl">{flag}</span>
             <div>
-              <p className="font-bold text-gray-900 text-sm leading-none">Spanisch</p>
-              <p className="text-xs text-gray-400 mt-0.5">Nivel B1 → B2</p>
+              <p className="font-bold text-gray-900 text-sm leading-none">
+                {profile ? profile.name : 'Sprachen lernen'}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
             </div>
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
           {nav.map(({ href, label, icon }) => {
-            const active = href === '/' ? path === '/' : path.startsWith(href);
+            const active = path.startsWith(href);
             return (
               <Link
                 key={href}
@@ -44,13 +51,19 @@ export default function Navigation() {
           })}
         </nav>
         <div className="p-4 border-t border-gray-100">
-          <p className="text-xs text-gray-300 text-center">Spanisch B1 → B2</p>
+          <Link
+            href="/profile"
+            className="block text-xs text-gray-400 hover:text-gray-600 text-center transition-colors"
+          >
+            Profil wechseln
+          </Link>
         </div>
       </aside>
 
+      {/* ── Mobile bottom bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 flex safe-area-inset-bottom">
         {nav.map(({ href, label, icon }) => {
-          const active = href === '/' ? path === '/' : path.startsWith(href);
+          const active = path.startsWith(href);
           return (
             <Link
               key={href}
@@ -64,6 +77,13 @@ export default function Navigation() {
             </Link>
           );
         })}
+        <Link
+          href="/profile"
+          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-400"
+        >
+          <span className="text-xl">👤</span>
+          {profile ? profile.name : 'Profil'}
+        </Link>
       </nav>
     </>
   );

@@ -5,8 +5,14 @@ import {
   ConjugationRecord,
   ConjugationSectionRecord,
 } from './types';
+import { PROFILE_STORAGE_KEY } from './profiles';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+function getUserId(): string {
+  if (typeof window === 'undefined') return 'default';
+  return localStorage.getItem(PROFILE_STORAGE_KEY) ?? 'default';
+}
 
 function normWord(s: string): string {
   return s
@@ -19,7 +25,10 @@ function normWord(s: string): string {
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
-    const res = await fetch(path, { cache: 'no-store' });
+    const res = await fetch(path, {
+      cache: 'no-store',
+      headers: { 'x-user-id': getUserId() },
+    });
     if (!res.ok) return fallback;
     return res.json() as Promise<T>;
   } catch {
@@ -30,7 +39,7 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
 async function putJson(path: string, data: unknown): Promise<void> {
   await fetch(path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() },
     body: JSON.stringify(data),
   });
 }
