@@ -35,9 +35,9 @@ export default function Conjugation({ exercise, onComplete }: Props) {
     });
   }
 
-  function check() {
+  async function check() {
     setChecked(true);
-    upsertConjugationAttempt(
+    await upsertConjugationAttempt(
       exercise.verb,
       exercise.sections.map((s, si) => ({
         tense: s.tense,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPrompt } from '@/lib/prompts';
 import { ExerciseType, Difficulty } from '@/lib/types';
+import { verbToExercise, pickNextVerb, findVerb } from '@/lib/verb-catalog';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
@@ -13,6 +14,13 @@ export async function POST(req: NextRequest) {
     verb?: string;
     knownVerbs?: string[];
   };
+
+  // Conjugation exercises come from the static catalog — no API call needed
+  if (type === 'conjugation') {
+    const catalogVerb = verb ? findVerb(verb) : null;
+    const target = catalogVerb ?? pickNextVerb(knownVerbs ?? []);
+    return NextResponse.json(verbToExercise(target));
+  }
 
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey === 'your_groq_api_key_here') {

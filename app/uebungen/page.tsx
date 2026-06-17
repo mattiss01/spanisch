@@ -39,7 +39,7 @@ function UebungenContent() {
     try {
       const knownVerbs =
         selectedType === 'conjugation'
-          ? getConjugationRecords().map(r => r.verb)
+          ? (await getConjugationRecords()).map(r => r.verb)
           : undefined;
 
       const res = await fetch('/api/exercise', {
@@ -60,9 +60,9 @@ function UebungenContent() {
     }
   }
 
-  function handleComplete(correct: number, total: number) {
+  async function handleComplete(correct: number, total: number) {
     setCompleted(true);
-    if (selectedType) recordExercise(selectedType, correct, total);
+    if (selectedType) await recordExercise(selectedType, correct, total);
   }
 
   function selectType(id: ExerciseType) {

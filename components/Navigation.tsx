@@ -4,11 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const nav = [
-  { href: '/', label: 'Dashboard', icon: '🏠' },
-  { href: '/uebungen', label: 'Übungen', icon: '✏️' },
-  { href: '/konjugation', label: 'Verben', icon: '🔤' },
   { href: '/vokabeln', label: 'Vokabeln', icon: '📖' },
-  { href: '/lernplan', label: 'Lernplan', icon: '📚' },
+  { href: '/konjugation', label: 'Verben', icon: '🔤' },
+  { href: '/uebungen', label: 'Übungen', icon: '✏️' },
 ];
 
 export default function Navigation() {
@@ -46,7 +44,7 @@ export default function Navigation() {
           })}
         </nav>
         <div className="p-4 border-t border-gray-100">
-          <p className="text-xs text-gray-300 text-center">Powered by Groq</p>
+          <p className="text-xs text-gray-300 text-center">Spanisch B1 → B2</p>
         </div>
       </aside>
 

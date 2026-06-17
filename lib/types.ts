@@ -138,6 +138,8 @@ export type Exercise =
   | VocabularyExercise
   | ConversationExercise;
 
+export type VocabStatus = 'wiederholen' | 'bekannt';
+
 export interface VocabEntry {
   id: string;
   word: string;
@@ -148,6 +150,7 @@ export interface VocabEntry {
   addedAt: string;
   reviewCount: number;
   lastReviewed?: string;
+  status?: VocabStatus;
 }
 
 export interface ProgressStats {
