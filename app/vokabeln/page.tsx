@@ -71,16 +71,35 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// A translation may list several acceptable answers separated by "/",
+// e.g. "leben / wohnen" or "el novio / la novia". Any one of them counts.
+function splitVariants(s: string): string[] {
+  return s.split('/').map(v => v.trim()).filter(Boolean);
+}
+
 function checkAnswer(user: string, correct: string): { correct: boolean; accentHint?: string } {
   const u = norm(user);
-  const c = norm(correct);
   if (u.length === 0) return { correct: false };
-  if (u === c || c.startsWith(u) || u.startsWith(c)) return { correct: true };
-  const su = stripAccents(u);
-  const sc = stripAccents(c);
-  if (su === sc || sc.startsWith(su) || su.startsWith(sc)) {
-    return { correct: true, accentHint: correct };
+
+  const variants = splitVariants(correct);
+
+  // Exact / prefix match against any variant
+  for (const variant of variants) {
+    const c = norm(variant);
+    if (c.length === 0) continue;
+    if (u === c || c.startsWith(u) || u.startsWith(c)) return { correct: true };
   }
+
+  // Accent-insensitive match against any variant
+  const su = stripAccents(u);
+  for (const variant of variants) {
+    const sc = stripAccents(norm(variant));
+    if (sc.length === 0) continue;
+    if (su === sc || sc.startsWith(su) || su.startsWith(sc)) {
+      return { correct: true, accentHint: variant };
+    }
+  }
+
   return { correct: false };
 }
 

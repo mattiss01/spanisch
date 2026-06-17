@@ -3,8 +3,15 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
+// Use Vercel Blob when either a classic read-write token is configured, or the
+// project is connected to a Blob store via OIDC (BLOB_STORE_ID + the runtime
+// VERCEL_OIDC_TOKEN). The @vercel/blob SDK resolves OIDC credentials itself.
+function useBlob(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+}
+
 export async function readJson<T>(file: string, fallback: T, userId = 'default'): Promise<T> {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (useBlob()) {
     const { list } = await import('@vercel/blob');
     const blobKey = `users/${userId}/${file}`;
     const { blobs } = await list({ prefix: blobKey });
@@ -29,11 +36,12 @@ export async function readJson<T>(file: string, fallback: T, userId = 'default')
 }
 
 export async function writeJson(file: string, data: unknown, userId = 'default'): Promise<void> {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (useBlob()) {
     const { put } = await import('@vercel/blob');
     await put(`users/${userId}/${file}`, JSON.stringify(data), {
       access: 'private',
       addRandomSuffix: false,
+      allowOverwrite: true,
       contentType: 'application/json',
     });
     return;
