@@ -10,8 +10,7 @@ export interface Profile {
 
 export const PROFILES: Profile[] = [
   { id: 'mattis', name: 'Mattis', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
-  { id: 'carlos', name: 'Carlos', direction: 'es_to_de', nativeLang: 'es', targetLang: 'de' },
-  { id: 'max',    name: 'Max',    direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
+  { id: 'marina', name: 'Marina', direction: 'es_to_de', nativeLang: 'es', targetLang: 'de' },
 ];
 
 export function getProfile(id: string): Profile | null {
