@@ -12,11 +12,11 @@ function useBlob(): boolean {
 
 export async function readJson<T>(file: string, fallback: T, userId = 'default'): Promise<T> {
   if (useBlob()) {
-    // Private-store blobs can't be fetched anonymously — use the SDK's get(),
-    // which authenticates with the same (OIDC) credentials as put().
+    // Read via the SDK's get(), which constructs the URL from the store id and
+    // handles credentials. Works for both public and private stores.
     const { get } = await import('@vercel/blob');
     try {
-      const res = await get(`users/${userId}/${file}`, { access: 'private' });
+      const res = await get(`users/${userId}/${file}`, { access: 'public' });
       if (res && res.statusCode === 200 && res.stream) {
         const text = await new Response(res.stream).text();
         return JSON.parse(text) as T;
@@ -40,7 +40,7 @@ export async function writeJson(file: string, data: unknown, userId = 'default')
   if (useBlob()) {
     const { put } = await import('@vercel/blob');
     await put(`users/${userId}/${file}`, JSON.stringify(data), {
-      access: 'private',
+      access: 'public',
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: 'application/json',
