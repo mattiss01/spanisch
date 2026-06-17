@@ -174,6 +174,8 @@ export default function VokabelnPage() {
   const unseenCount = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es))).length;
 
   const todayCount = vocab.filter(v => isToday(v.lastReviewed)).length;
+  // If there's activity today, the streak is at least 1 even if stats lag behind.
+  const displayStreak = Math.max(stats?.streak ?? 0, todayCount > 0 ? 1 : 0);
 
   function makeItem(de: string, es: string, example: string, vocabId?: string, currentLevel = 0): SessionItem {
     return {
@@ -295,6 +297,56 @@ export default function VokabelnPage() {
       v.translation.toLowerCase().includes(wordSearch.toLowerCase())
   );
 
+  const addWordSection = (
+    !showAddForm ? (
+      <button
+        onClick={() => { setShowAddForm(true); setAddError(''); }}
+        className="w-full py-2.5 border border-dashed border-gray-300 text-gray-500 hover:border-red-400 hover:text-red-600 rounded-xl text-sm font-medium transition-colors"
+      >
+        ＋ Add a word
+      </button>
+    ) : (
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <input
+          type="text"
+          value={addNative}
+          onChange={e => setAddNative(e.target.value)}
+          placeholder={direction === 'es_to_de' ? 'Spanish word' : 'German word'}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+        />
+        <input
+          type="text"
+          value={addTarget}
+          onChange={e => setAddTarget(e.target.value)}
+          placeholder={direction === 'es_to_de' ? 'German translation' : 'Spanish translation'}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+        />
+        <input
+          type="text"
+          value={addExample}
+          onChange={e => setAddExample(e.target.value)}
+          placeholder="Example sentence (optional)"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
+        />
+        {addError && <p className="text-xs text-red-600">{addError}</p>}
+        <div className="flex gap-2">
+          <button
+            onClick={handleAddWord}
+            className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl text-sm font-semibold transition-colors"
+          >
+            Add word
+          </button>
+          <button
+            onClick={() => { setShowAddForm(false); setAddError(''); }}
+            className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  );
+
   return (
     <main className="md:ml-56 min-h-screen bg-gray-50 pb-24 md:pb-8">
       <div className="max-w-xl mx-auto p-5 space-y-5">
@@ -306,7 +358,7 @@ export default function VokabelnPage() {
           </p>
         </div>
 
-        <StreakBanner streak={stats?.streak ?? 0} todayCount={todayCount} goal={DAILY_GOAL} />
+        <StreakBanner streak={displayStreak} todayCount={todayCount} goal={DAILY_GOAL} />
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
@@ -375,6 +427,8 @@ export default function VokabelnPage() {
                 </button>
               </div>
             )}
+
+            {phase === 'idle' && addWordSection}
 
             {(phase === 'input' || phase === 'results') && (
               <SessionPanel
@@ -456,54 +510,7 @@ export default function VokabelnPage() {
         {/* ===== WORDS ===== */}
         {tab === 'words' && (
           <div className="space-y-3">
-            {/* Add-your-own-word */}
-            {!showAddForm ? (
-              <button
-                onClick={() => { setShowAddForm(true); setAddError(''); }}
-                className="w-full py-2.5 border border-dashed border-gray-300 text-gray-500 hover:border-red-400 hover:text-red-600 rounded-xl text-sm font-medium transition-colors"
-              >
-                ＋ Add a word
-              </button>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                <input
-                  type="text"
-                  value={addNative}
-                  onChange={e => setAddNative(e.target.value)}
-                  placeholder={direction === 'es_to_de' ? 'Spanish word' : 'German word'}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
-                />
-                <input
-                  type="text"
-                  value={addTarget}
-                  onChange={e => setAddTarget(e.target.value)}
-                  placeholder={direction === 'es_to_de' ? 'German translation' : 'Spanish translation'}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
-                />
-                <input
-                  type="text"
-                  value={addExample}
-                  onChange={e => setAddExample(e.target.value)}
-                  placeholder="Example sentence (optional)"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
-                />
-                {addError && <p className="text-xs text-red-600">{addError}</p>}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleAddWord}
-                    className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    Add word
-                  </button>
-                  <button
-                    onClick={() => { setShowAddForm(false); setAddError(''); }}
-                    className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
+            {addWordSection}
 
             {vocab.length === 0 ? (
               <div className="text-center py-14">
