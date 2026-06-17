@@ -17,13 +17,13 @@ interface SessionItem {
   example: string;
   vocabId?: string;
   currentLevel: number;
-  question: string;   // label shown to user
-  answer: string;     // correct answer expected from user
+  question: string;
+  answer: string;
 }
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
 
-const LEVEL_INTERVALS = [0, 1, 3, 7, 14]; // days for levels 0–4
+const LEVEL_INTERVALS = [0, 1, 3, 7, 14];
 
 function getLevel(v: VocabEntry): number {
   if (v.level !== undefined) return v.level;
@@ -84,8 +84,6 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
   return { correct: false };
 }
 
-// ─── Misc ────────────────────────────────────────────────────────────────────
-
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -121,13 +119,13 @@ export default function VokabelnPage() {
   if (!ready || !profile) {
     return (
       <main className="md:ml-56 min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-400 text-sm">Laden…</p>
+        <p className="text-gray-400 text-sm">Loading…</p>
       </main>
     );
   }
 
   const direction = profile.direction;
-  const answerLang = direction === 'es_to_de' ? 'Deutsch…' : 'Spanisch…';
+  const answerLang = direction === 'es_to_de' ? 'German…' : 'Spanish…';
 
   const bekanntWords = vocab.filter(v => getLevel(v) === 5);
   const dueToday = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && isDue(v.nextReview); });
@@ -232,25 +230,25 @@ export default function VokabelnPage() {
     <main className="md:ml-56 min-h-screen bg-gray-50 pb-24 md:pb-8">
       <div className="max-w-xl mx-auto p-5 space-y-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vokabeln</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Vocabulary</h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            {bekanntWords.length} bekannt · {dueToday.length} heute fällig
-            {upcoming.length > 0 && ` · ${upcoming.length} demnächst`}
+            {bekanntWords.length} known · {dueToday.length} due today
+            {upcoming.length > 0 && ` · ${upcoming.length} coming up`}
           </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
             <p className="text-xl font-bold text-green-600">{bekanntWords.length}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Bekannt</p>
+            <p className="text-xs text-gray-400 mt-0.5">Known</p>
           </div>
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
             <p className="text-xl font-bold text-amber-500">{dueToday.length}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Heute fällig</p>
+            <p className="text-xs text-gray-400 mt-0.5">Due today</p>
           </div>
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
             <p className="text-xl font-bold text-blue-500">{upcoming.length}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Demnächst</p>
+            <p className="text-xs text-gray-400 mt-0.5">Coming up</p>
           </div>
         </div>
 
@@ -258,9 +256,9 @@ export default function VokabelnPage() {
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
           {(
             [
-              ['lernen', 'Lernen'],
-              ['wiederholen', dueToday.length > 0 ? `Wiederholen (${dueToday.length})` : 'Wiederholen'],
-              ['bekannt', bekanntWords.length > 0 ? `Bekannt (${bekanntWords.length})` : 'Bekannt'],
+              ['lernen', 'Learn'],
+              ['wiederholen', dueToday.length > 0 ? `Review (${dueToday.length})` : 'Review'],
+              ['bekannt', bekanntWords.length > 0 ? `Known (${bekanntWords.length})` : 'Known'],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button
@@ -275,19 +273,19 @@ export default function VokabelnPage() {
           ))}
         </div>
 
-        {/* ===== LERNEN ===== */}
+        {/* ===== LEARN ===== */}
         {tab === 'lernen' && (
           <div className="space-y-4">
             {phase === 'idle' && (
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                 <div>
                   <p className="text-sm text-gray-600">
-                    Nächste 20 unbekannte Wörter aus dem Katalog.
+                    Next 20 unknown words from the catalog.
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     {unseenCount > 0
-                      ? `${unseenCount} von ${VOCAB_CATALOG.length} Wörtern noch nicht gesehen`
-                      : `Alle ${VOCAB_CATALOG.length} Katalogwörter bereits gesehen`}
+                      ? `${unseenCount} of ${VOCAB_CATALOG.length} words not seen yet`
+                      : `All ${VOCAB_CATALOG.length} catalog words already seen`}
                   </p>
                   {VOCAB_CATALOG.length > 0 && (
                     <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -302,7 +300,7 @@ export default function VokabelnPage() {
                   onClick={startLernen}
                   className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-semibold transition-colors"
                 >
-                  Lernrunde starten →
+                  Start round →
                 </button>
               </div>
             )}
@@ -331,31 +329,31 @@ export default function VokabelnPage() {
           </div>
         )}
 
-        {/* ===== WIEDERHOLEN ===== */}
+        {/* ===== REVIEW ===== */}
         {tab === 'wiederholen' && (
           <div className="space-y-4">
             {phase === 'idle' &&
               (dueToday.length === 0 ? (
                 <div className="text-center py-14">
                   <p className="text-4xl mb-3">🎉</p>
-                  <p className="text-sm font-medium text-gray-500">Keine Wörter heute fällig!</p>
+                  <p className="text-sm font-medium text-gray-500">No words due today!</p>
                   {upcoming.length > 0 && (
                     <p className="text-xs text-gray-400 mt-1">
-                      {upcoming.length} Wörter kommen demnächst zurück.
+                      {upcoming.length} words coming up soon.
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                   <p className="text-sm text-gray-600">
-                    Du hast <strong>{dueToday.length}</strong> fällige Wörter heute.
-                    {dueToday.length > 20 && ' Es werden 20 abgefragt.'}
+                    You have <strong>{dueToday.length}</strong> words due today.
+                    {dueToday.length > 20 && ' 20 will be tested.'}
                   </p>
                   <button
                     onClick={startWiederholen}
                     className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-colors"
                   >
-                    Wiederholungsrunde starten →
+                    Start review →
                   </button>
                 </div>
               ))}
@@ -384,14 +382,14 @@ export default function VokabelnPage() {
           </div>
         )}
 
-        {/* ===== BEKANNT ===== */}
+        {/* ===== KNOWN ===== */}
         {tab === 'bekannt' && (
           <div className="space-y-3">
             {bekanntWords.length === 0 ? (
               <div className="text-center py-14">
                 <p className="text-4xl mb-3">📚</p>
                 <p className="text-sm text-gray-400">
-                  Noch keine bekannten Wörter. Mach eine Lernrunde!
+                  No known words yet. Start a learning round!
                 </p>
               </div>
             ) : (
@@ -400,10 +398,10 @@ export default function VokabelnPage() {
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Suchen…"
+                  placeholder="Search…"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
                 />
-                <p className="text-xs text-gray-400">{bekanntFiltered.length} Wörter</p>
+                <p className="text-xs text-gray-400">{bekanntFiltered.length} words</p>
                 <div className="space-y-2">
                   {bekanntFiltered.map(entry => (
                     <div
@@ -426,7 +424,7 @@ export default function VokabelnPage() {
                           await updateVocabStatus(entry.id, false);
                           await refresh();
                         }}
-                        title="Zurück in Wiederholen"
+                        title="Back to review"
                         className="text-gray-300 hover:text-amber-500 transition-colors text-lg shrink-0"
                       >
                         ↩
@@ -500,15 +498,15 @@ function SessionPanel({
           }`}
         >
           <p className="text-center text-lg">
-            {correctCount}/{items.length} richtig
+            {correctCount}/{items.length} correct
             {correctCount === items.length && ' 🎉'}
           </p>
           <p className="text-center text-xs font-normal mt-1 opacity-70">
-            {toRepeat} zu wiederholen · {toKeep(results, confidence)} Stufe höher
-            {bekanntOverrideCount > 0 && ` · ${bekanntOverrideCount} direkt bekannt`}
+            {toRepeat} to review · {toKeep(results, confidence)} level up
+            {bekanntOverrideCount > 0 && ` · ${bekanntOverrideCount} directly known`}
           </p>
           <p className="text-center text-xs font-normal mt-2 opacity-60">
-            Richtige Antworten: <strong>Unsicher</strong> zum Wiederholen, <strong>Bekannt</strong> zum sofortigen Ausblenden
+            Correct answers: <strong>Unsure</strong> to review again, <strong>Known</strong> to hide immediately
           </p>
         </div>
       )}
@@ -581,7 +579,7 @@ function SessionPanel({
                           : 'bg-gray-100 text-gray-400 hover:bg-amber-100 hover:text-amber-700'
                       }`}
                     >
-                      Unsicher
+                      Unsure
                     </button>
                     <button
                       onClick={() => onConfidenceChange(i, 'sicher')}
@@ -591,7 +589,7 @@ function SessionPanel({
                           : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-700'
                       }`}
                     >
-                      Sicher
+                      Sure
                     </button>
                     <button
                       onClick={() => onConfidenceChange(i, 'bekannt')}
@@ -601,7 +599,7 @@ function SessionPanel({
                           : 'bg-gray-100 text-gray-400 hover:bg-green-50 hover:text-green-800'
                       }`}
                     >
-                      Bekannt ✓
+                      Known ✓
                     </button>
                   </div>
                 )}
@@ -613,10 +611,9 @@ function SessionPanel({
                 )}
               </div>
 
-              {/* Accent hint */}
               {phase === 'results' && ok && hint && (
                 <p className="text-xs text-blue-600 pl-[calc(1rem+7rem+0.5rem)] pb-0.5">
-                  Tipp: mit Akzent → <span className="font-semibold">{hint}</span>
+                  Tip: with accent → <span className="font-semibold">{hint}</span>
                 </p>
               )}
             </div>
@@ -630,7 +627,7 @@ function SessionPanel({
           disabled={!allFilled}
           className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-semibold transition-colors"
         >
-          Überprüfen
+          Check
         </button>
       ) : (
         <div className="flex gap-2">
@@ -638,13 +635,13 @@ function SessionPanel({
             onClick={async () => { await onSave(confidence); onReset(); }}
             className="flex-1 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-sm font-semibold transition-colors"
           >
-            Speichern & Fertig
+            Save & Done
           </button>
           <button
             onClick={async () => { await onSave(confidence); onReset(); }}
             className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
           >
-            Neue Runde →
+            New round →
           </button>
         </div>
       )}

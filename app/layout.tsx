@@ -3,8 +3,8 @@ import './globals.css';
 import Navigation from '@/components/Navigation';
 
 export const metadata: Metadata = {
-  title: 'Spanisch Lernen',
-  description: 'Interaktive Spanisch-Lernplattform für B1/B2',
+  title: 'Vocab & Verbs',
+  description: 'Language learning app for vocabulary and verb conjugations',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

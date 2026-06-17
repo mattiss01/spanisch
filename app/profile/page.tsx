@@ -18,8 +18,8 @@ export default function ProfilePage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <p className="text-4xl mb-3">🌍</p>
-          <h1 className="text-2xl font-bold text-gray-900">Wer bist du?</h1>
-          <p className="text-sm text-gray-400 mt-1">Wähle dein Profil um fortzufahren.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Who are you?</h1>
+          <p className="text-sm text-gray-400 mt-1">Choose your profile to continue.</p>
         </div>
         <div className="space-y-3">
           {PROFILES.map(p => (
@@ -30,7 +30,7 @@ export default function ProfilePage() {
             >
               <p className="font-bold text-gray-900 text-lg">{p.name}</p>
               <p className="text-sm text-gray-400 mt-0.5">
-                {p.direction === 'de_to_es' ? '🇩🇪 → 🇪🇸 Spanisch lernen' : '🇪🇸 → 🇩🇪 Deutsch lernen'}
+                {p.direction === 'de_to_es' ? '🇩🇪 → 🇪🇸 Learning Spanish' : '🇪🇸 → 🇩🇪 Learning German'}
               </p>
             </button>
           ))}

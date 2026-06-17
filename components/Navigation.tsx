@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useProfile } from '@/lib/use-profile';
 
 const nav = [
-  { href: '/vokabeln', label: 'Vokabeln', icon: '📖' },
-  { href: '/konjugation', label: 'Verben', icon: '🔤' },
+  { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
+  { href: '/konjugation', label: 'Verbs', icon: '🔤' },
 ];
 
 export default function Navigation() {
@@ -14,7 +14,7 @@ export default function Navigation() {
   const { profile } = useProfile();
 
   const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
-  const subtitle = profile?.direction === 'es_to_de' ? 'Español → Deutsch' : 'Deutsch → Español';
+  const subtitle = profile?.direction === 'es_to_de' ? 'Spanish → German' : 'German → Spanish';
 
   return (
     <>
@@ -25,7 +25,7 @@ export default function Navigation() {
             <span className="text-2xl">{flag}</span>
             <div>
               <p className="font-bold text-gray-900 text-sm leading-none">
-                {profile ? profile.name : 'Sprachen lernen'}
+                {profile ? profile.name : 'Language Learning'}
               </p>
               <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
             </div>
@@ -55,7 +55,7 @@ export default function Navigation() {
             href="/profile"
             className="block text-xs text-gray-400 hover:text-gray-600 text-center transition-colors"
           >
-            Profil wechseln
+            Switch Profile
           </Link>
         </div>
       </aside>
@@ -82,7 +82,7 @@ export default function Navigation() {
           className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-400"
         >
           <span className="text-xl">👤</span>
-          {profile ? profile.name : 'Profil'}
+          {profile ? profile.name : 'Profile'}
         </Link>
       </nav>
     </>

@@ -66,8 +66,8 @@ export default function Conjugation({ exercise, onComplete }: Props) {
           <p className="text-3xl font-bold text-gray-900 mt-0.5">{exercise.verb}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Zeitformen</p>
-          <p className="text-sm font-semibold text-red-700 mt-0.5">{exercise.sections.length} Formen</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Tenses</p>
+          <p className="text-sm font-semibold text-red-700 mt-0.5">{exercise.sections.length} forms</p>
         </div>
       </div>
 
@@ -185,7 +185,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
           disabled={!allFilled}
           className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-medium transition-colors"
         >
-          Überprüfen
+          Check
         </button>
       ) : (
         <div className="space-y-3">
@@ -198,15 +198,15 @@ export default function Conjugation({ exercise, onComplete }: Props) {
                 : 'bg-red-50 text-red-800'
             }`}
           >
-            {perfectSections}/{exercise.sections.length} Zeitformen perfekt ·{' '}
-            {totalCorrect}/{totalQuestions} Formen richtig
+            {perfectSections}/{exercise.sections.length} tenses perfect ·{' '}
+            {totalCorrect}/{totalQuestions} forms correct
             {totalCorrect === totalQuestions && ' 🎉'}
           </div>
           <button
             onClick={reset}
             className="w-full py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
           >
-            Neu versuchen
+            Try again
           </button>
         </div>
       )}
