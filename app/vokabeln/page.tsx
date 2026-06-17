@@ -52,8 +52,10 @@ function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidenc
 
 function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
   if (newLevel >= 5) return '';
-  // Failed or "Hard": review tomorrow, not again today.
-  if (!correct || conf === 'unsicher') {
+  // "Again" (didn't know it): due now → shows in Review today.
+  if (!correct) return new Date().toISOString();
+  // "Hard" / "Keep phase": review tomorrow.
+  if (conf === 'unsicher') {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString();
@@ -636,10 +638,10 @@ function Flashcard({
   const evaluation = checked ? checkAnswer(answer, item.answer) : null;
   const correct = evaluation?.correct ?? false;
 
-  async function rate(conf: Confidence) {
+  async function rate(asCorrect: boolean, conf: Confidence) {
     if (saving) return;
     setSaving(true);
-    await onRate(correct, conf);
+    await onRate(asCorrect, conf);
     // component is remounted (key changes) on advance; no local reset needed
   }
 
@@ -711,15 +713,15 @@ function Flashcard({
           {correct ? (
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => rate('unsicher')}
+                onClick={() => rate(true, 'unsicher')}
                 disabled={saving}
                 className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
               >
                 Hard
-                <span className="block text-[10px] font-normal opacity-70">again tomorrow</span>
+                <span className="block text-[10px] font-normal opacity-70">stay · tomorrow</span>
               </button>
               <button
-                onClick={() => rate('sicher')}
+                onClick={() => rate(true, 'sicher')}
                 disabled={saving}
                 className="py-2.5 rounded-xl text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 transition-colors"
               >
@@ -727,7 +729,7 @@ function Flashcard({
                 <span className="block text-[10px] font-normal opacity-70">level up</span>
               </button>
               <button
-                onClick={() => rate('bekannt')}
+                onClick={() => rate(true, 'bekannt')}
                 disabled={saving}
                 className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
               >
@@ -736,13 +738,37 @@ function Flashcard({
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => rate('sicher')}
-              disabled={saving}
-              className="w-full py-3 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors"
-            >
-              Continue →
-            </button>
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => rate(false, 'sicher')}
+                  disabled={saving}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors"
+                >
+                  Again
+                  <span className="block text-[10px] font-normal opacity-70">review today</span>
+                </button>
+                <button
+                  onClick={() => rate(true, 'unsicher')}
+                  disabled={saving}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                >
+                  Keep phase
+                  <span className="block text-[10px] font-normal opacity-70">typo / misclick</span>
+                </button>
+                <button
+                  onClick={() => rate(true, 'bekannt')}
+                  disabled={saving}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
+                >
+                  Known
+                  <span className="block text-[10px] font-normal opacity-80">mark known</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 text-center">
+                Was it a typo? Keep the phase or mark it known instead of going back.
+              </p>
+            </>
           )}
         </>
       )}
