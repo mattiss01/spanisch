@@ -18,6 +18,7 @@ function isToday(iso?: string): boolean {
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
 type Confidence = 'sicher' | 'unsicher' | 'bekannt';
+type WordSort = 'alpha' | 'phase' | 'review';
 
 interface SessionItem {
   de: string;
@@ -123,6 +124,7 @@ export default function VokabelnPage() {
   const [vocab, setVocab] = useState<VocabEntry[]>([]);
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [wordSearch, setWordSearch] = useState('');
+  const [wordSort, setWordSort] = useState<WordSort>('alpha');
 
   // Flashcard session state (one word at a time)
   const [phase, setPhase] = useState<Phase>('idle');
@@ -316,12 +318,25 @@ export default function VokabelnPage() {
     await refresh();
   }
 
-  const wordsFiltered = vocab.filter(
-    v =>
-      !wordSearch ||
-      v.word.toLowerCase().includes(wordSearch.toLowerCase()) ||
-      v.translation.toLowerCase().includes(wordSearch.toLowerCase())
-  );
+  const wordsFiltered = vocab
+    .filter(
+      v =>
+        !wordSearch ||
+        v.word.toLowerCase().includes(wordSearch.toLowerCase()) ||
+        v.translation.toLowerCase().includes(wordSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (wordSort === 'phase') return getLevel(a) - getLevel(b);
+      if (wordSort === 'review') {
+        const ra = a.nextReview ? new Date(a.nextReview).getTime() : Infinity;
+        const rb = b.nextReview ? new Date(b.nextReview).getTime() : Infinity;
+        return ra - rb;
+      }
+      // alphabetical by the primary (displayed) word
+      const pa = (direction === 'es_to_de' ? a.word : a.translation).toLowerCase();
+      const pb = (direction === 'es_to_de' ? b.word : b.translation).toLowerCase();
+      return pa.localeCompare(pb);
+    });
 
   const addWordSection = (
     !showAddForm ? (
@@ -560,7 +575,28 @@ export default function VokabelnPage() {
                   placeholder="Search…"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-red-400 outline-none"
                 />
-                <p className="text-xs text-gray-400">{wordsFiltered.length} words seen</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-gray-400 shrink-0">{wordsFiltered.length} words</p>
+                  <div className="flex gap-1">
+                    {([
+                      ['alpha', 'A–Z'],
+                      ['phase', 'Phase'],
+                      ['review', 'Next review'],
+                    ] as [WordSort, string][]).map(([id, label]) => (
+                      <button
+                        key={id}
+                        onClick={() => setWordSort(id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                          wordSort === id
+                            ? 'bg-red-700 text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   {wordsFiltered.map(entry => {
                     const level = getLevel(entry);
