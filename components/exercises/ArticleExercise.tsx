@@ -7,6 +7,9 @@ import { upsertArticleAttempt } from '@/lib/storage';
 interface Props {
   exercise: ArticleExerciseType;
   onComplete?: (correct: number, total: number) => void;
+  // When false, skip writing a per-topic progress record (used for unsaved
+  // generated drafts whose topicId isn't a real saved topic yet).
+  persist?: boolean;
 }
 
 type Mode = 'type' | 'mc';
@@ -25,7 +28,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function ArticleExercise({ exercise, onComplete }: Props) {
+export default function ArticleExercise({ exercise, onComplete, persist = true }: Props) {
   const items = exercise.items;
   const [mode, setMode] = useState<Mode>('type');
   const [typed, setTyped] = useState<string[]>(items.map(() => ''));
@@ -58,13 +61,15 @@ export default function ArticleExercise({ exercise, onComplete }: Props) {
 
   async function check() {
     setChecked(true);
-    await upsertArticleAttempt(
-      exercise.topicId,
-      exercise.title,
-      exercise.title_es,
-      items,
-      userAnswers
-    );
+    if (persist) {
+      await upsertArticleAttempt(
+        exercise.topicId,
+        exercise.title,
+        exercise.title_es,
+        items,
+        userAnswers
+      );
+    }
     onComplete?.(correct, items.length);
   }
 

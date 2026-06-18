@@ -1,18 +1,9 @@
-import { ArticleExercise, ArticleItem } from './types';
+import { ArticleExercise, ArticleTopic } from './types';
 
 // Curated catalog of German declension topics for Spanish-speaking learners
 // (the `es_to_de` direction, i.e. Marina). Each topic groups several cloze
 // items where the surrounding context forces a single correct article/pronoun.
 // All hints and instructions are in Spanish.
-
-export interface ArticleTopic {
-  id: string;
-  title: string;          // German topic name
-  title_es: string;       // Spanish topic name
-  instruction: string;    // Spanish instruction shown above the items
-  explanation_es: string; // Spanish grammar explanation shown after checking
-  items: ArticleItem[];
-}
 
 export const ARTICLE_CATALOG: ArticleTopic[] = [
   // ── Bestimmte Artikel ───────────────────────────────────────────────────
@@ -165,4 +156,30 @@ export function buildArticleExercise(topic: ArticleTopic): ArticleExercise {
 
 export function getArticleTopic(id: string): ArticleTopic | undefined {
   return ARTICLE_CATALOG.find(t => t.id === id);
+}
+
+// ── Generation foci ─────────────────────────────────────────────────────────
+// Drives the "generate with AI" dropdown. `grammar_en` is injected into the Groq
+// prompt to steer which case / word type the generated sentences should target.
+
+export interface ArticleFocus {
+  id: string;
+  label_es: string;   // shown in the UI dropdown
+  grammar_en: string; // instruction injected into the LLM prompt
+}
+
+export const ARTICLE_FOCUS: ArticleFocus[] = [
+  { id: 'def-nom', label_es: 'Artículo definido – Nominativo', grammar_en: 'definite articles (der/die/das/die) in the NOMINATIVE case (the grammatical subject)' },
+  { id: 'def-akk', label_es: 'Artículo definido – Acusativo', grammar_en: 'definite articles (den/die/das/die) in the ACCUSATIVE case (the direct object)' },
+  { id: 'def-dat', label_es: 'Artículo definido – Dativo', grammar_en: 'definite articles (dem/der/dem/den) in the DATIVE case (indirect object, or after mit/zu/bei/aus/von, or after dative verbs like helfen/gehören)' },
+  { id: 'def-gen', label_es: 'Artículo definido – Genitivo', grammar_en: 'definite articles (des/der/des/der) in the GENITIVE case (possession), adding -s/-es to masculine and neuter nouns' },
+  { id: 'poss-akk', label_es: 'Posesivos – Acusativo', grammar_en: 'possessive articles (mein/dein/sein/ihr/unser/euer + endings) in the ACCUSATIVE case; the sentence subject must determine the possessor' },
+  { id: 'poss-dat', label_es: 'Posesivos – Dativo', grammar_en: 'possessive articles (mein/dein/sein/ihr/unser/euer + endings) in the DATIVE case; the sentence subject must determine the possessor' },
+  { id: 'pron-akk', label_es: 'Pronombres personales – Acusativo', grammar_en: 'personal pronouns in the ACCUSATIVE case (mich/dich/ihn/sie/es/uns/euch/sie), replacing a direct object' },
+  { id: 'pron-dat', label_es: 'Pronombres personales – Dativo', grammar_en: 'personal pronouns in the DATIVE case (mir/dir/ihm/ihr/uns/euch/ihnen), replacing an indirect object' },
+  { id: 'mixed', label_es: 'Casos mezclados', grammar_en: 'a MIX of definite articles, possessive articles and personal pronouns across the nominative, accusative and dative cases' },
+];
+
+export function getArticleFocus(id: string): ArticleFocus | undefined {
+  return ARTICLE_FOCUS.find(f => f.id === id);
 }

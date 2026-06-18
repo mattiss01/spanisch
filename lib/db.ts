@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { VocabEntry, ProgressStats, ConjugationRecord, ArticleRecord } from './types';
+import { VocabEntry, ProgressStats, ConjugationRecord, ArticleRecord, ArticleTopic } from './types';
 
 // ─── client ──────────────────────────────────────────────────────────────────
 
@@ -184,5 +184,24 @@ export async function setArticle(userId: string, records: ArticleRecord[]): Prom
   const { error } = await db()
     .from('article')
     .upsert({ user_id: userId, data: records }, { onConflict: 'user_id' });
+  if (error) throw new Error(error.message);
+}
+
+// ─── article_topics (AI-generated topics, one jsonb row per user) ────────────────
+
+export async function getArticleTopics(userId: string): Promise<ArticleTopic[]> {
+  const { data, error } = await db()
+    .from('article_topics')
+    .select('data')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return ((data?.data as ArticleTopic[]) ?? []);
+}
+
+export async function setArticleTopics(userId: string, topics: ArticleTopic[]): Promise<void> {
+  const { error } = await db()
+    .from('article_topics')
+    .upsert({ user_id: userId, data: topics }, { onConflict: 'user_id' });
   if (error) throw new Error(error.message);
 }

@@ -6,6 +6,7 @@ import {
   ConjugationSectionRecord,
   ArticleRecord,
   ArticleItem,
+  ArticleTopic,
 } from './types';
 import { PROFILE_STORAGE_KEY } from './profiles';
 
@@ -270,4 +271,34 @@ export async function upsertArticleAttempt(
   }
 
   await putJson('/api/data/artikel', records);
+}
+
+// ─── generated article topics (saved AI exercises) ─────────────────────────────
+
+export async function getGeneratedTopics(): Promise<ArticleTopic[]> {
+  const data = await getJson<unknown[]>('/api/data/article-topics', []);
+  return data.filter(
+    (t): t is ArticleTopic =>
+      typeof t === 'object' && t !== null && typeof (t as ArticleTopic).id === 'string'
+  );
+}
+
+// Save a newly generated topic (read-modify-write of the single per-user row).
+export async function addGeneratedTopic(topic: ArticleTopic): Promise<void> {
+  const raw = await getJsonStrict<unknown[]>('/api/data/article-topics');
+  const topics = raw.filter(
+    (t): t is ArticleTopic =>
+      typeof t === 'object' && t !== null && typeof (t as ArticleTopic).id === 'string'
+  );
+  topics.unshift(topic);
+  await putJson('/api/data/article-topics', topics);
+}
+
+export async function deleteGeneratedTopic(id: string): Promise<void> {
+  const raw = await getJsonStrict<unknown[]>('/api/data/article-topics');
+  const topics = raw.filter(
+    (t): t is ArticleTopic =>
+      typeof t === 'object' && t !== null && typeof (t as ArticleTopic).id === 'string'
+  );
+  await putJson('/api/data/article-topics', topics.filter(t => t.id !== id));
 }

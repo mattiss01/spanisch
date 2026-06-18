@@ -217,6 +217,18 @@ export interface ArticleExercise {
   items: ArticleItem[];
 }
 
+// A practiceable topic: either curated (in article-catalog) or AI-generated and
+// saved per-user. `generated` marks the latter so the UI can label them.
+export interface ArticleTopic {
+  id: string;
+  title: string;           // German topic name
+  title_es: string;        // Spanish topic name
+  instruction: string;     // Spanish instruction shown above the items
+  explanation_es: string;  // Spanish grammar explanation shown after checking
+  items: ArticleItem[];
+  generated?: boolean;
+}
+
 export interface ArticleMistake {
   prompt: string;          // the sentence with a "___" marking the blank
   correct: string;
