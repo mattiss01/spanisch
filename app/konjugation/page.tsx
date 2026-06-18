@@ -10,6 +10,13 @@ import { VERB_CATALOG_DE } from '@/lib/verb-catalog-de';
 import { useProfile } from '@/lib/use-profile';
 
 type Tab = 'lernen' | 'all' | 'mistakes';
+type VerbSort = 'alpha' | 'accuracy' | 'recent';
+
+function accuracyOf(r: ConjugationRecord): number {
+  const total = r.sections.reduce((s, sec) => s + sec.totalQuestions, 0);
+  const correct = r.sections.reduce((s, sec) => s + sec.totalCorrect, 0);
+  return total > 0 ? correct / total : 0;
+}
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -48,6 +55,8 @@ export default function KonjugationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [verbSort, setVerbSort] = useState<VerbSort>('recent');
+  const [verbSortDir, setVerbSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -70,7 +79,13 @@ export default function KonjugationPage() {
   const withMistakes = records.filter(r =>
     r.sections.some(s => s.recentMistakes.length > 0)
   );
-  const displayed = tab === 'mistakes' ? withMistakes : records;
+  const displayed = [...(tab === 'mistakes' ? withMistakes : records)].sort((a, b) => {
+    let cmp: number;
+    if (verbSort === 'alpha') cmp = a.verb.localeCompare(b.verb);
+    else if (verbSort === 'accuracy') cmp = accuracyOf(a) - accuracyOf(b);
+    else cmp = new Date(a.lastAttempted).getTime() - new Date(b.lastAttempted).getTime();
+    return verbSortDir === 'asc' ? cmp : -cmp;
+  });
   const mastered = records.filter(r => r.mastered).length;
 
   const learnedVerbs = new Set(records.map(r => r.verb.toLowerCase()));
@@ -249,6 +264,33 @@ export default function KonjugationPage() {
             <p className="text-sm text-gray-500 font-medium">
               {tab === 'mistakes' ? 'No errors – all mastered!' : 'No verbs practiced yet.'}
             </p>
+          </div>
+        )}
+
+        {/* Sort controls */}
+        {tab !== 'lernen' && displayed.length > 0 && (
+          <div className="flex items-center justify-end gap-1">
+            {([
+              ['alpha', 'A–Z'],
+              ['accuracy', 'Accuracy'],
+              ['recent', 'Recent'],
+            ] as [VerbSort, string][]).map(([id, label]) => {
+              const active = verbSort === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    if (active) setVerbSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+                    else { setVerbSort(id); setVerbSortDir(id === 'alpha' ? 'asc' : 'desc'); }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    active ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {label}{active ? (verbSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                </button>
+              );
+            })}
           </div>
         )}
 
