@@ -14,6 +14,10 @@ export default function Conjugation({ exercise, onComplete }: Props) {
     exercise.sections.map(s => s.pronouns.map(() => ''))
   );
   const [checked, setChecked] = useState(false);
+  // Rewrite-to-learn: after checking, the learner retypes each wrong form.
+  const [retypes, setRetypes] = useState<string[][]>(
+    exercise.sections.map(s => s.pronouns.map(() => ''))
+  );
 
   const results: boolean[][] = checked
     ? exercise.sections.map((s, si) =>
@@ -29,6 +33,14 @@ export default function Conjugation({ exercise, onComplete }: Props) {
 
   function setAnswer(si: number, pi: number, value: string) {
     setAnswers(prev => {
+      const next = prev.map(row => [...row]);
+      next[si][pi] = value;
+      return next;
+    });
+  }
+
+  function setRetype(si: number, pi: number, value: string) {
+    setRetypes(prev => {
       const next = prev.map(row => [...row]);
       next[si][pi] = value;
       return next;
@@ -52,6 +64,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
 
   function reset() {
     setAnswers(exercise.sections.map(s => s.pronouns.map(() => '')));
+    setRetypes(exercise.sections.map(s => s.pronouns.map(() => '')));
     setChecked(false);
   }
 
@@ -123,44 +136,67 @@ export default function Conjugation({ exercise, onComplete }: Props) {
                 {section.pronouns.map((pronoun, pi) => {
                   const isCorrect = checked && results[si][pi];
                   const isWrong = checked && !results[si][pi];
+                  const target = section.answers[pi];
+                  const retypeOk =
+                    isWrong && retypes[si][pi].trim().toLowerCase() === target.toLowerCase();
                   return (
                     <div
                       key={pi}
-                      className={`flex items-center gap-3 px-4 py-2 ${
+                      className={`px-4 py-2 ${
                         isCorrect ? 'bg-green-50' : isWrong ? 'bg-red-50' : ''
                       }`}
                     >
-                      <span className="text-sm text-gray-400 w-36 shrink-0">{pronoun}</span>
-                      <input
-                        type="text"
-                        value={answers[si][pi]}
-                        disabled={checked}
-                        onChange={e => setAnswer(si, pi, e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            const nextPi = pi + 1;
-                            const nextSi = si + (nextPi >= section.pronouns.length ? 1 : 0);
-                            const actualPi = nextPi >= section.pronouns.length ? 0 : nextPi;
-                            if (nextSi < exercise.sections.length) {
-                              const id = `inp-${nextSi}-${actualPi}`;
-                              document.getElementById(id)?.focus();
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-400 w-36 shrink-0">{pronoun}</span>
+                        <input
+                          type="text"
+                          value={answers[si][pi]}
+                          disabled={checked}
+                          onChange={e => setAnswer(si, pi, e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const nextPi = pi + 1;
+                              const nextSi = si + (nextPi >= section.pronouns.length ? 1 : 0);
+                              const actualPi = nextPi >= section.pronouns.length ? 0 : nextPi;
+                              if (nextSi < exercise.sections.length) {
+                                const id = `inp-${nextSi}-${actualPi}`;
+                                document.getElementById(id)?.focus();
+                              }
                             }
-                          }
-                        }}
-                        id={`inp-${si}-${pi}`}
-                        placeholder="..."
-                        className={`flex-1 border-b bg-transparent text-sm transition-colors disabled:opacity-100 ${
-                          isCorrect
-                            ? 'border-green-400 text-green-700'
-                            : isWrong
-                            ? 'border-red-400 text-red-600'
-                            : 'border-gray-300 focus:border-red-600 text-gray-900'
-                        }`}
-                      />
+                          }}
+                          id={`inp-${si}-${pi}`}
+                          placeholder="..."
+                          className={`flex-1 border-b bg-transparent text-sm transition-colors disabled:opacity-100 ${
+                            isCorrect
+                              ? 'border-green-400 text-green-700'
+                              : isWrong
+                              ? 'border-red-400 text-red-600'
+                              : 'border-gray-300 focus:border-red-600 text-gray-900'
+                          }`}
+                        />
+                        {isWrong && (
+                          <span className="text-sm text-green-700 font-semibold shrink-0">
+                            {target}
+                          </span>
+                        )}
+                      </div>
+
                       {isWrong && (
-                        <span className="text-sm text-green-700 font-semibold shrink-0">
-                          {section.answers[pi]}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1.5 sm:pl-[9.75rem]">
+                          <span className="text-xs text-amber-600 shrink-0">Rewrite to learn:</span>
+                          <input
+                            type="text"
+                            value={retypes[si][pi]}
+                            onChange={e => setRetype(si, pi, e.target.value)}
+                            placeholder={target}
+                            className={`flex-1 min-w-0 border-b bg-transparent text-sm py-0.5 outline-none transition-colors ${
+                              retypeOk
+                                ? 'border-green-500 text-green-700'
+                                : 'border-amber-400 text-amber-700 focus:border-amber-600'
+                            }`}
+                          />
+                          {retypeOk && <span className="text-green-600 text-sm shrink-0">✓</span>}
+                        </div>
                       )}
                     </div>
                   );
