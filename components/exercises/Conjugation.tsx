@@ -9,6 +9,14 @@ interface Props {
   onComplete?: (correct: number, total: number) => void;
 }
 
+// Conjugation answers are checked accent-insensitively: a missing or wrong accent
+// (e.g. "hablo" vs "habló", "comi" vs "comí") still counts as correct.
+function answersMatch(a: string, b: string): boolean {
+  const norm = (s: string) =>
+    s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return norm(a) === norm(b);
+}
+
 export default function Conjugation({ exercise, onComplete }: Props) {
   const [answers, setAnswers] = useState<string[][]>(
     exercise.sections.map(s => s.pronouns.map(() => ''))
@@ -21,9 +29,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
 
   const results: boolean[][] = checked
     ? exercise.sections.map((s, si) =>
-        s.pronouns.map((_, pi) =>
-          answers[si][pi].trim().toLowerCase() === s.answers[pi].toLowerCase()
-        )
+        s.pronouns.map((_, pi) => answersMatch(answers[si][pi], s.answers[pi]))
       )
     : exercise.sections.map(s => s.pronouns.map(() => false));
 
@@ -137,8 +143,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
                   const isCorrect = checked && results[si][pi];
                   const isWrong = checked && !results[si][pi];
                   const target = section.answers[pi];
-                  const retypeOk =
-                    isWrong && retypes[si][pi].trim().toLowerCase() === target.toLowerCase();
+                  const retypeOk = isWrong && answersMatch(retypes[si][pi], target);
                   return (
                     <div
                       key={pi}

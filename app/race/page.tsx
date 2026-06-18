@@ -65,7 +65,8 @@ export default function RacePage() {
             <span>🏁</span> THE RACE
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            First to {goal} points wins. Most words learned each day scores 5 · 4 · 3 · 2 · 1.
+            First to {goal} points wins. Most learning each day scores 5 · 4 · 3 · 2 · 1.
+            A conjugated verb counts as 5 words.
           </p>
         </div>
 
@@ -137,7 +138,7 @@ export default function RacePage() {
 
           {todayActive.length === 0 ? (
             <p className="text-sm text-gray-400 py-3 text-center">
-              No words practiced yet today. Be the first! 🚀
+              No activity yet today. Be the first! 🚀
             </p>
           ) : (
             <div className="space-y-2.5">

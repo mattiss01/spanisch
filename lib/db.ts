@@ -248,3 +248,17 @@ export async function getDailyVocabCounts(startISO: string): Promise<Record<stri
   }
   return counts;
 }
+
+// Verbs conjugated since startISO, tallied per user_id. The conjugation table is
+// one JSONB row per user holding an array of records, each with `lastAttempted`.
+export async function getDailyConjugationCounts(startISO: string): Promise<Record<string, number>> {
+  const { data, error } = await db().from('conjugation').select('user_id, data');
+  if (error) throw new Error(error.message);
+  const counts: Record<string, number> = {};
+  for (const row of (data as { user_id: string; data: ConjugationRecord[] }[]) ?? []) {
+    const recs = Array.isArray(row.data) ? row.data : [];
+    const n = recs.filter(r => r.lastAttempted && r.lastAttempted >= startISO).length;
+    if (n > 0) counts[row.user_id] = n;
+  }
+  return counts;
+}

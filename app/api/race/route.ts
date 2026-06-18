@@ -4,6 +4,7 @@ import {
   getRaceState,
   setRaceState,
   getDailyVocabCounts,
+  getDailyConjugationCounts,
 } from '@/lib/db';
 import { berlinDayStart, awardPoints } from '@/lib/race';
 import { PROFILES } from '@/lib/profiles';
@@ -12,6 +13,8 @@ import { RaceResponse } from '@/lib/types';
 const GOAL = 100;
 // Keep ~30 days of settled snapshots so the global row can't grow without bound.
 const KEEP_DAILY_DAYS = 30;
+// Conjugating one verb counts as this much toward the daily activity total.
+const CONJUGATION_WEIGHT = 5;
 
 // GET reads the standings and self-heals: it snapshots today's live counts and
 // settles any finished day into cumulative points. Settlement is idempotent
@@ -44,12 +47,19 @@ export async function GET() {
 
   try {
     const { startISO } = berlinDayStart();
-    const [state, live] = await Promise.all([getRaceState(), getDailyVocabCounts(startISO)]);
+    const [state, vocab, verbs] = await Promise.all([
+      getRaceState(),
+      getDailyVocabCounts(startISO),
+      getDailyConjugationCounts(startISO),
+    ]);
 
-    // Only ever track the known profiles.
+    // Daily activity per profile = words practiced + 5 per verb conjugated today.
     const ids = new Set(PROFILES.map(p => p.id));
     const liveTracked: Record<string, number> = {};
-    for (const id of ids) if (live[id]) liveTracked[id] = live[id];
+    for (const id of ids) {
+      const total = (vocab[id] ?? 0) + (verbs[id] ?? 0) * CONJUGATION_WEIGHT;
+      if (total > 0) liveTracked[id] = total;
+    }
 
     // Snapshot today's count (overwrite — last write of the day wins at settlement).
     state.dailyCounts[today] = liveTracked;

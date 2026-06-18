@@ -152,9 +152,13 @@ export async function upsertConjugationAttempt(
       typeof r === 'object' && r !== null && Array.isArray((r as ConjugationRecord).sections)
   );
 
+  // Accent-insensitive, matching the Conjugation component's answer check.
+  const foldAccents = (s: string) =>
+    s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
   const computed: ConjugationSectionRecord[] = sections.map(s => {
     const correct = s.userAnswers.map(
-      (a, i) => a.trim().toLowerCase() === s.correctAnswers[i].toLowerCase()
+      (a, i) => foldAccents(a) === foldAccents(s.correctAnswers[i])
     );
     return {
       tense: s.tense,
