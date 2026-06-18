@@ -81,6 +81,20 @@ export default function HelpPage() {
             <span className="font-semibold">Mattis</span> practices Spanish verbs (present, preterite, future).
             <br />
             <span className="font-semibold">Marina</span> practices German verbs (present tense).
+            <br />
+            <span className="font-semibold">Emmi</span> (beginner) practices Spanish verbs in the present tense only.
+          </p>
+        </section>
+
+        {/* Grundlagen (beginners) */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+          <h2 className="font-bold text-gray-900 text-base flex items-center gap-2">
+            <span>📘</span> Grundlagen
+          </h2>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Brand-new to Spanish? Beginner profiles get a <strong>Grundlagen</strong> page with short
+            first-steps lessons (pronunciation, pronouns, articles, ser vs. estar, present-tense verbs)
+            and a gentler, ordered set of starter words to learn first.
           </p>
         </section>
 

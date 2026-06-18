@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { loadVocabStrict, upsertVocabWord, getStats, recordExercise } from '@/lib/storage';
 import { VocabEntry, ProgressStats } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
+import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
+import { isBeginner } from '@/lib/profiles';
 import StreakBanner from '@/components/StreakBanner';
 
 const DAILY_GOAL = 20;
@@ -191,12 +193,19 @@ export default function VokabelnPage() {
   const direction = profile.direction;
   const answerLang = direction === 'es_to_de' ? 'German…' : 'Spanish…';
 
+  // Beginners (A1) learn from an ordered starter set first, then flow into the full
+  // catalog (deduped) so they never run out. Everyone else uses the full catalog.
+  const starterEs = new Set(STARTER_VOCAB.map(w => norm(w.es)));
+  const sourceCatalog = isBeginner(profile)
+    ? [...STARTER_VOCAB, ...VOCAB_CATALOG.filter(w => !starterEs.has(norm(w.es)))]
+    : VOCAB_CATALOG;
+
   const bekanntWords = vocab.filter(v => getLevel(v) === 5);
   const dueToday = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && isDue(v.nextReview); });
   const upcoming = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && !isDue(v.nextReview); });
 
   const seenWords = new Set(vocab.map(v => norm(v.word)));
-  const unseenCount = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es))).length;
+  const unseenCount = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).length;
 
   const todayCount = vocab.filter(v => isToday(v.lastReviewed)).length;
   // If there's activity today, the streak is at least 1 even if stats lag behind.
@@ -254,7 +263,7 @@ export default function VokabelnPage() {
 
   function startLernen() {
     if (!vocabLoaded) return;
-    const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
+    const unseen = sourceCatalog.filter(e => !seenWords.has(norm(e.es)));
     if (unseen.length === 0) return;
     // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
     setItems(unseen.map(e => makeItem(e.de, e.es, '', undefined, 1)));
@@ -567,14 +576,14 @@ export default function VokabelnPage() {
                     <p className="text-sm text-gray-600">Learn new words one at a time.</p>
                     <p className="text-xs text-gray-400 mt-1">
                       {unseenCount > 0
-                        ? `${unseenCount} of ${VOCAB_CATALOG.length} words not seen yet`
-                        : `All ${VOCAB_CATALOG.length} catalog words already seen 🎉`}
+                        ? `${unseenCount} of ${sourceCatalog.length} words not seen yet`
+                        : `All ${sourceCatalog.length} catalog words already seen 🎉`}
                     </p>
-                    {VOCAB_CATALOG.length > 0 && (
+                    {sourceCatalog.length > 0 && (
                       <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full"
-                          style={{ width: `${Math.round((vocab.length / VOCAB_CATALOG.length) * 100)}%` }}
+                          style={{ width: `${Math.round((vocab.length / sourceCatalog.length) * 100)}%` }}
                         />
                       </div>
                     )}

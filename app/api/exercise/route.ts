@@ -4,11 +4,12 @@ import { verbToExercise, pickNextVerb, findVerb } from '@/lib/verb-catalog';
 import { germanVerbToExercise, pickNextGermanVerb, findGermanVerb } from '@/lib/verb-catalog-de';
 
 export async function POST(req: NextRequest) {
-  const { type, verb, knownVerbs, language } = (await req.json()) as {
+  const { type, verb, knownVerbs, language, beginner } = (await req.json()) as {
     type: ExerciseType;
     verb?: string;
     knownVerbs?: string[];
     language?: string;
+    beginner?: boolean;
   };
 
   if (type === 'conjugation') {
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
     const catalogVerb = verb ? findVerb(verb) : null;
     const target = catalogVerb ?? pickNextVerb(knownVerbs ?? []);
-    return NextResponse.json(verbToExercise(target));
+    return NextResponse.json(verbToExercise(target, { presentOnly: beginner }));
   }
 
   return NextResponse.json({ error: 'Nicht unterstützt.' }, { status: 400 });

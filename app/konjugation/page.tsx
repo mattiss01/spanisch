@@ -8,6 +8,7 @@ import Conjugation from '@/components/exercises/Conjugation';
 import { VERB_CATALOG } from '@/lib/verb-catalog';
 import { VERB_CATALOG_DE } from '@/lib/verb-catalog-de';
 import { useProfile } from '@/lib/use-profile';
+import { isBeginner } from '@/lib/profiles';
 
 type Tab = 'lernen' | 'all' | 'mistakes';
 type VerbSort = 'alpha' | 'accuracy' | 'recent';
@@ -101,7 +102,7 @@ export default function KonjugationPage() {
       const res = await fetch('/api/exercise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'conjugation', knownVerbs, language: direction }),
+        body: JSON.stringify({ type: 'conjugation', knownVerbs, language: direction, beginner: isBeginner(profile) }),
       });
       const data = await res.json();
       if (data.error) setError(data.error);
@@ -140,6 +141,7 @@ export default function KonjugationPage() {
           type: 'conjugation',
           verb: record.verb,
           language: direction,
+          beginner: isBeginner(profile),
         }),
       });
       const data = await res.json();
@@ -162,7 +164,11 @@ export default function KonjugationPage() {
       <div className="max-w-xl mx-auto p-5 space-y-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Verbs</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Practice conjugations and review mistakes</p>
+          <p className="text-gray-400 text-sm mt-0.5">
+            {isBeginner(profile)
+              ? 'Practice present-tense conjugations and review mistakes'
+              : 'Practice conjugations and review mistakes'}
+          </p>
         </div>
 
         {/* Stats */}

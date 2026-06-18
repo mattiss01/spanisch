@@ -9,6 +9,8 @@ const nav = [
   { href: '/konjugation', label: 'Verbs', icon: '🔤' },
   // German declension practice — only relevant for Spanish→German learners (Marina).
   { href: '/artikel', label: 'Artikel', icon: '🇩🇪', onlyDirection: 'es_to_de' as const },
+  // Grammar first-steps — only for true beginners (A1).
+  { href: '/grammar', label: 'Grundlagen', icon: '📘', onlyLevel: 'A1' as const },
   { href: '/help', label: 'Help', icon: '❓' },
 ];
 
@@ -19,7 +21,11 @@ export default function Navigation() {
   const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
   const subtitle = profile?.direction === 'es_to_de' ? 'Spanish → German' : 'German → Spanish';
 
-  const items = nav.filter(n => !n.onlyDirection || n.onlyDirection === profile?.direction);
+  const items = nav.filter(
+    n =>
+      (!('onlyDirection' in n) || n.onlyDirection === profile?.direction) &&
+      (!('onlyLevel' in n) || n.onlyLevel === profile?.level)
+  );
 
   return (
     <>

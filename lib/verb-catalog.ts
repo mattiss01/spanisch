@@ -954,20 +954,36 @@ export const VERB_CATALOG: CatalogVerb[] = [
   },
 ];
 
-export function verbToExercise(verb: CatalogVerb): ConjugationExercise {
+export function verbToExercise(
+  verb: CatalogVerb,
+  opts?: { presentOnly?: boolean }
+): ConjugationExercise {
+  const presentSection = {
+    tense: 'presente',
+    tenseName_de: 'Present (Präsens)',
+    pronouns: [...PRONOUNS],
+    answers: [...verb.presente],
+    notes: verb.notesPresente,
+  };
+
+  // Beginners (A1) drill only the present tense.
+  if (opts?.presentOnly) {
+    return {
+      type: 'conjugation',
+      title: `${verb.infinitive} – Conjugation`,
+      verb: verb.infinitive,
+      instruction: `Conjugate "${verb.infinitive}" (${verb.de}) in the present tense.`,
+      sections: [presentSection],
+    };
+  }
+
   return {
     type: 'conjugation',
     title: `${verb.infinitive} – Conjugation`,
     verb: verb.infinitive,
     instruction: `Conjugate "${verb.infinitive}" (${verb.de}) in the present, preterite and future.`,
     sections: [
-      {
-        tense: 'presente',
-        tenseName_de: 'Present (Präsens)',
-        pronouns: [...PRONOUNS],
-        answers: [...verb.presente],
-        notes: verb.notesPresente,
-      },
+      presentSection,
       {
         tense: 'preterito_indefinido',
         tenseName_de: 'Preterite (Indefinido)',
