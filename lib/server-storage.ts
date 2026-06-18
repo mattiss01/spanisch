@@ -10,6 +10,13 @@ function useBlob(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 }
 
+function isNotFound(e: unknown): boolean {
+  const name = (e as { name?: string })?.name ?? '';
+  const code = (e as { code?: string })?.code ?? '';
+  const msg = e instanceof Error ? e.message : String(e);
+  return code === 'ENOENT' || /not.?found/i.test(name) || /not.?found/i.test(msg);
+}
+
 export async function readJson<T>(file: string, fallback: T, userId = 'default'): Promise<T> {
   if (useBlob()) {
     // Read via the SDK's get(), which constructs the URL from the store id and
@@ -21,18 +28,24 @@ export async function readJson<T>(file: string, fallback: T, userId = 'default')
         const text = await new Response(res.stream).text();
         return JSON.parse(text) as T;
       }
-    } catch {
-      // blob not found or read error → fall back
+      // null / 304 → blob genuinely doesn't exist yet
+      return fallback;
+    } catch (e) {
+      // CRITICAL: only an actual "not found" may be treated as empty. Any other
+      // read error must propagate — returning `fallback` here would let a caller
+      // overwrite the whole file with empty data and wipe real progress.
+      if (isNotFound(e)) return fallback;
+      throw e;
     }
-    return fallback;
   }
 
   try {
     const filePath = path.join(DATA_DIR, userId, file);
     const content = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(content) as T;
-  } catch {
-    return fallback;
+  } catch (e) {
+    if (isNotFound(e)) return fallback;
+    throw e;
   }
 }
 

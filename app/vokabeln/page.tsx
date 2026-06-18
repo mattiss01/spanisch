@@ -134,6 +134,7 @@ export default function VokabelnPage() {
   const [sessionCorrect, setSessionCorrect] = useState(0);
   // Serializes per-word saves so concurrent writes don't clobber each other.
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
+  const [saveError, setSaveError] = useState(false);
 
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -286,7 +287,7 @@ export default function VokabelnPage() {
         }
         await recordExercise('vocabulary', correct ? 1 : 0, 1);
       })
-      .catch(() => {});
+      .catch(() => setSaveError(true));
 
     // When the session ends, reconcile with the server (real multi-day streak).
     if (isLast) drainAndRefresh();
@@ -444,6 +445,18 @@ export default function VokabelnPage() {
             {upcoming.length > 0 && ` · ${upcoming.length} coming up`}
           </p>
         </div>
+
+        {saveError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between gap-3">
+            <span>⚠ Some changes couldn&apos;t be saved. Check your connection.</span>
+            <button
+              onClick={async () => { setSaveError(false); await refresh(); }}
+              className="shrink-0 text-xs font-semibold underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         <StreakBanner streak={displayStreak} todayCount={todayCount} goal={DAILY_GOAL} />
 

@@ -23,6 +23,7 @@ function normWord(s: string): string {
     .trim();
 }
 
+// Tolerant read — returns fallback on any error. Use only for display.
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(path, {
@@ -36,12 +37,25 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+// Strict read — THROWS on failure. Use before any read-modify-write so that a
+// transient read error aborts the write instead of overwriting the file with
+// empty/partial data (which would wipe real progress).
+async function getJsonStrict<T>(path: string): Promise<T> {
+  const res = await fetch(path, {
+    cache: 'no-store',
+    headers: { 'x-user-id': getUserId() },
+  });
+  if (!res.ok) throw new Error(`Read failed for ${path}: HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 async function putJson(path: string, data: unknown): Promise<void> {
-  await fetch(path, {
+  const res = await fetch(path, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() },
     body: JSON.stringify(data),
   });
+  if (!res.ok) throw new Error(`Write failed for ${path}: HTTP ${res.status}`);
 }
 
 // ─── vocab ───────────────────────────────────────────────────────────────────
@@ -53,7 +67,7 @@ export async function getVocab(): Promise<VocabEntry[]> {
 export async function addVocabEntry(
   entry: Omit<VocabEntry, 'id' | 'addedAt' | 'reviewCount'>
 ): Promise<void> {
-  const entries = await getVocab();
+  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   const newEntry: VocabEntry = {
     ...entry,
     id: crypto.randomUUID(),
@@ -64,12 +78,12 @@ export async function addVocabEntry(
 }
 
 export async function removeVocabEntry(id: string): Promise<void> {
-  const entries = await getVocab();
+  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   await putJson('/api/data/vocab', entries.filter(e => e.id !== id));
 }
 
 export async function updateVocabReview(id: string): Promise<void> {
-  const entries = await getVocab();
+  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   await putJson(
     '/api/data/vocab',
     entries.map(e =>
@@ -81,7 +95,7 @@ export async function updateVocabReview(id: string): Promise<void> {
 }
 
 export async function updateVocabStatus(id: string, correct: boolean): Promise<void> {
-  const entries = await getVocab();
+  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   const now = new Date().toISOString();
   await putJson(
     '/api/data/vocab',
@@ -103,7 +117,7 @@ export async function updateVocabStatus(id: string, correct: boolean): Promise<v
 export async function processVocabSession(
   session: Array<{ word: string; translation: string; example?: string; level: number; nextReview: string }>
 ): Promise<void> {
-  const existing = await getVocab();
+  const existing = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   const existingByNorm = new Map(existing.map(v => [normWord(v.word), v.id]));
 
   const updated = existing.map(e => ({ ...e }));
@@ -144,7 +158,7 @@ export async function processVocabSession(
 export async function batchUpdateVocabStatus(
   updates: { id: string; level: number; nextReview: string }[]
 ): Promise<void> {
-  const entries = await getVocab();
+  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
   const map = new Map(updates.map(u => [u.id, u]));
   const now = new Date().toISOString();
   await putJson(
@@ -184,7 +198,8 @@ export async function recordExercise(
   correct: number,
   total: number
 ): Promise<void> {
-  const stats = await getStats();
+  const raw = await getJsonStrict<ProgressStats | null>('/api/data/stats');
+  const stats = raw ? { ...defaultStats, ...raw } : defaultStats;
   const today = new Date().toDateString();
   const lastDay = stats.lastActivity ? new Date(stats.lastActivity).toDateString() : '';
   const yesterday = new Date(Date.now() - 86400000).toDateString();
@@ -228,7 +243,11 @@ export async function upsertConjugationAttempt(
   verb: string,
   sections: SectionAttempt[]
 ): Promise<void> {
-  const records = await getConjugationRecords();
+  const raw = await getJsonStrict<unknown[]>('/api/data/conjugation');
+  const records = raw.filter(
+    (r): r is ConjugationRecord =>
+      typeof r === 'object' && r !== null && Array.isArray((r as ConjugationRecord).sections)
+  );
 
   const computed: ConjugationSectionRecord[] = sections.map(s => {
     const correct = s.userAnswers.map(
