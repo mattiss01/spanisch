@@ -712,14 +712,14 @@ export default function VokabelnPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-gray-900 text-sm">
-                              {direction === 'es_to_de' ? entry.word : entry.translation}
+                              {direction === 'es_to_de' ? entry.translation : entry.word}
                             </p>
                             <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${levelColors[level]}`}>
                               {levelLabels[level]}
                             </span>
                           </div>
                           <p className="text-gray-500 text-sm">
-                            {direction === 'es_to_de' ? entry.translation : entry.word}
+                            {direction === 'es_to_de' ? entry.word : entry.translation}
                           </p>
                           {level < 5 && reviewDate && (
                             <p className="text-gray-400 text-xs mt-0.5">
