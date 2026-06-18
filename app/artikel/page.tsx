@@ -222,6 +222,62 @@ export default function ArtikelPage() {
         {/* ── Aprender tab ── */}
         {tab === 'aprender' && (
           <div className="space-y-3">
+            {/* Topic list (catalog + saved generated) */}
+            {allTopics.map(topic => {
+              const rec = recordById.get(topic.id);
+              const isPracticing = practicing === topic.id;
+              return (
+                <div
+                  key={topic.id}
+                  className={`bg-white rounded-xl border-2 shadow-sm transition-colors ${
+                    isPracticing ? 'border-red-300' : 'border-gray-100'
+                  }`}
+                >
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 text-sm">{topic.title_es}</span>
+                          {topic.generated && (
+                            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-md font-medium">IA</span>
+                          )}
+                          {rec?.mastered && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-medium">✓</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">{topic.title}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {topic.generated && (
+                          <button
+                            onClick={() => removeTopic(topic.id)}
+                            className="text-sm text-gray-300 hover:text-red-500 transition-colors"
+                            title="Eliminar tema"
+                          >
+                            🗑
+                          </button>
+                        )}
+                        <button
+                          onClick={() => practiceTopic(topic.id)}
+                          className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                            isPracticing ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                          }`}
+                        >
+                          {isPracticing ? 'Cerrar' : rec ? 'Repasar' : 'Empezar'}
+                        </button>
+                      </div>
+                    </div>
+                    {rec && <TotalBar record={rec} />}
+                  </div>
+                  {isPracticing && exercise && (
+                    <div className="border-t border-gray-100 p-4">
+                      <ArticleExercise exercise={exercise} onComplete={handleComplete} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
             {/* Generation panel */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
               <div className="flex items-center gap-2">
@@ -302,62 +358,6 @@ export default function ArtikelPage() {
                 </div>
               )}
             </div>
-
-            {/* Topic list (catalog + saved generated) */}
-            {allTopics.map(topic => {
-              const rec = recordById.get(topic.id);
-              const isPracticing = practicing === topic.id;
-              return (
-                <div
-                  key={topic.id}
-                  className={`bg-white rounded-xl border-2 shadow-sm transition-colors ${
-                    isPracticing ? 'border-red-300' : 'border-gray-100'
-                  }`}
-                >
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900 text-sm">{topic.title_es}</span>
-                          {topic.generated && (
-                            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-md font-medium">IA</span>
-                          )}
-                          {rec?.mastered && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-medium">✓</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{topic.title}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {topic.generated && (
-                          <button
-                            onClick={() => removeTopic(topic.id)}
-                            className="text-sm text-gray-300 hover:text-red-500 transition-colors"
-                            title="Eliminar tema"
-                          >
-                            🗑
-                          </button>
-                        )}
-                        <button
-                          onClick={() => practiceTopic(topic.id)}
-                          className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                            isPracticing ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                          }`}
-                        >
-                          {isPracticing ? 'Cerrar' : rec ? 'Repasar' : 'Empezar'}
-                        </button>
-                      </div>
-                    </div>
-                    {rec && <TotalBar record={rec} />}
-                  </div>
-                  {isPracticing && exercise && (
-                    <div className="border-t border-gray-100 p-4">
-                      <ArticleExercise exercise={exercise} onComplete={handleComplete} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
 

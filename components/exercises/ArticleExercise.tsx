@@ -220,7 +220,7 @@ export default function ArticleExercise({ exercise, onComplete, persist = true }
           disabled={!allFilled}
           className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-medium transition-colors"
         >
-          Überprüfen
+          Check
         </button>
       ) : (
         <div className="space-y-3">
@@ -233,8 +233,8 @@ export default function ArticleExercise({ exercise, onComplete, persist = true }
                 : 'bg-red-50 text-red-800'
             }`}
           >
-            {correct} von {items.length} richtig
-            {correct === items.length && ' – Perfekt! 🎉'}
+            {correct} of {items.length} correct
+            {correct === items.length && ' – Perfect! 🎉'}
           </div>
           <button
             onClick={() => setShowExplanation(v => !v)}
