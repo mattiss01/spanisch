@@ -11,6 +11,8 @@ import { isBeginner } from '@/lib/profiles';
 import StreakBanner from '@/components/StreakBanner';
 
 const DAILY_GOAL = 20;
+// One Learn session introduces this many new words; finish early or keep going.
+const ROUND_SIZE = 20;
 
 function isToday(iso?: string): boolean {
   if (!iso) return false;
@@ -263,7 +265,8 @@ export default function VokabelnPage() {
 
   function startLernen() {
     if (!vocabLoaded) return;
-    const unseen = sourceCatalog.filter(e => !seenWords.has(norm(e.es)));
+    // One round of up to ROUND_SIZE new words (not the whole catalog).
+    const unseen = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).slice(0, ROUND_SIZE);
     if (unseen.length === 0) return;
     // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
     setItems(unseen.map(e => makeItem(e.de, e.es, '', undefined, 1)));
