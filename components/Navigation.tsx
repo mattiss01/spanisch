@@ -7,6 +7,8 @@ import { useProfile } from '@/lib/use-profile';
 const nav = [
   { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
   { href: '/konjugation', label: 'Verbs', icon: '🔤' },
+  // Global competitive leaderboard — everyone sees the same standings.
+  { href: '/race', label: 'The Race', icon: '🏁' },
   // German declension practice — only relevant for Spanish→German learners (Marina).
   { href: '/artikel', label: 'Artikel', icon: '🇩🇪', onlyDirection: 'es_to_de' as const },
   // Grammar first-steps — only for true beginners (A1).

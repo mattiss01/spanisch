@@ -246,3 +246,29 @@ export interface ArticleRecord {
   lastAttempted: string;
   mastered: boolean;       // true when last attempt had 0 mistakes
 }
+
+// ─── The Race (cross-user competitive vocab leaderboard) ───────────────────────
+
+// One global row (id='global'). Past-day counts can't be reconstructed from the
+// vocab table (last_reviewed is overwritten), so we snapshot each day's live count
+// and settle finished days into cumulative points lazily on read.
+export interface RaceState {
+  points: Record<string, number>;                       // cumulative per user_id (may be fractional)
+  dailyCounts: Record<string, Record<string, number>>;  // 'YYYY-MM-DD' -> { user_id: count }
+  settledDates: string[];                               // days already folded into points
+}
+
+export interface RaceRacer {
+  id: string;
+  name: string;
+  points: number;       // cumulative
+  todayCount: number;   // distinct words practiced today
+  todayPoints: number;  // points they'd earn if the day ended now
+}
+
+export interface RaceResponse {
+  goal: number;
+  today: string;
+  racers: RaceRacer[];  // sorted by points desc
+  winnerId: string | null;
+}

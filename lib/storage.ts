@@ -7,6 +7,7 @@ import {
   ArticleRecord,
   ArticleItem,
   ArticleTopic,
+  RaceResponse,
 } from './types';
 import { PROFILE_STORAGE_KEY } from './profiles';
 
@@ -292,6 +293,15 @@ export async function addGeneratedTopic(topic: ArticleTopic): Promise<void> {
   );
   topics.unshift(topic);
   await putJson('/api/data/article-topics', topics);
+}
+
+// ─── the race (global standings) ───────────────────────────────────────────────
+
+const emptyRace: RaceResponse = { goal: 100, today: '', racers: [], winnerId: null };
+
+// Global leaderboard — no user header needed. Tolerant read for display only.
+export async function getRace(): Promise<RaceResponse> {
+  return getJson<RaceResponse>('/api/race', emptyRace);
 }
 
 export async function deleteGeneratedTopic(id: string): Promise<void> {

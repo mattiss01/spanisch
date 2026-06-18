@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { VocabEntry, ProgressStats, ConjugationRecord, ArticleRecord, ArticleTopic } from './types';
+import { VocabEntry, ProgressStats, ConjugationRecord, ArticleRecord, ArticleTopic, RaceState } from './types';
 
 // ─── client ──────────────────────────────────────────────────────────────────
 
@@ -204,4 +204,47 @@ export async function setArticleTopics(userId: string, topics: ArticleTopic[]): 
     .from('article_topics')
     .upsert({ user_id: userId, data: topics }, { onConflict: 'user_id' });
   if (error) throw new Error(error.message);
+}
+
+// ─── race (one global jsonb row, id='global') ────────────────────────────────────
+
+const RACE_ROW_ID = 'global';
+const EMPTY_RACE: RaceState = { points: {}, dailyCounts: {}, settledDates: [] };
+
+export async function getRaceState(): Promise<RaceState> {
+  const { data, error } = await db()
+    .from('race')
+    .select('data')
+    .eq('id', RACE_ROW_ID)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const s = data?.data as Partial<RaceState> | undefined;
+  if (!s) return { ...EMPTY_RACE };
+  return {
+    points: s.points ?? {},
+    dailyCounts: s.dailyCounts ?? {},
+    settledDates: s.settledDates ?? [],
+  };
+}
+
+export async function setRaceState(state: RaceState): Promise<void> {
+  const { error } = await db()
+    .from('race')
+    .upsert({ id: RACE_ROW_ID, data: state }, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
+}
+
+// Distinct words practiced (last_reviewed) since startISO, tallied per user_id.
+// Each vocab row is one word, so a counted row = a distinct word practiced today.
+export async function getDailyVocabCounts(startISO: string): Promise<Record<string, number>> {
+  const { data, error } = await db()
+    .from('vocab')
+    .select('user_id')
+    .gte('last_reviewed', startISO);
+  if (error) throw new Error(error.message);
+  const counts: Record<string, number> = {};
+  for (const row of (data as { user_id: string }[]) ?? []) {
+    counts[row.user_id] = (counts[row.user_id] ?? 0) + 1;
+  }
+  return counts;
 }
