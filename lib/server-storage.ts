@@ -57,6 +57,7 @@ export async function writeJson(file: string, data: unknown, userId = 'default')
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: 'application/json',
+      cacheControlMaxAge: 0, // don't let the CDN serve a stale copy on the next read
     });
     return;
   }

@@ -64,6 +64,18 @@ export async function getVocab(): Promise<VocabEntry[]> {
   return getJson('/api/data/vocab', []);
 }
 
+// Strict load — throws on failure so the caller can avoid treating a failed
+// read as "no words" (which would let a later write wipe real progress).
+export async function loadVocabStrict(): Promise<VocabEntry[]> {
+  return getJsonStrict<VocabEntry[]>('/api/data/vocab');
+}
+
+// Write the full, client-authoritative word list. No server read-modify-write,
+// so a stale/cached read can never drop words that were just added.
+export async function saveVocab(entries: VocabEntry[]): Promise<void> {
+  await putJson('/api/data/vocab', entries);
+}
+
 export async function addVocabEntry(
   entry: Omit<VocabEntry, 'id' | 'addedAt' | 'reviewCount'>
 ): Promise<void> {

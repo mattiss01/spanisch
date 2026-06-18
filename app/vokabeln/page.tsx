@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getVocab, processVocabSession, batchUpdateVocabStatus, addVocabEntry, getStats, recordExercise } from '@/lib/storage';
+import { loadVocabStrict, saveVocab, getStats, recordExercise } from '@/lib/storage';
 import { VocabEntry, ProgressStats } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { useProfile } from '@/lib/use-profile';
@@ -82,6 +82,15 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// German keyboard substitutes: ä→ae, ö→oe, ü→ue, ß→ss (and accept the reverse).
+function germanFold(s: string): string {
+  return s
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+}
+
 // A translation may list several acceptable answers separated by "/",
 // e.g. "leben / wohnen" or "el novio / la novia". Any one of them counts.
 function splitVariants(s: string): string[] {
@@ -101,12 +110,15 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
     if (u === c) return { correct: true };
   }
 
-  // Accent-insensitive exact match against any variant
+  // Tolerant exact match: accent-stripped (ä→a) or German-folded (ä→ae, ß→ss)
   const su = stripAccents(u);
+  const fu = germanFold(u);
   for (const variant of variants) {
-    const sc = stripAccents(norm(variant));
-    if (sc.length === 0) continue;
-    if (su === sc) return { correct: true, accentHint: variant };
+    const c = norm(variant);
+    if (c.length === 0) continue;
+    if (stripAccents(c) === su || germanFold(c) === fu) {
+      return { correct: true, accentHint: variant };
+    }
   }
 
   return { correct: false };
@@ -134,6 +146,8 @@ export default function VokabelnPage() {
   // Serializes per-word saves so concurrent writes don't clobber each other.
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
   const [saveError, setSaveError] = useState(false);
+  const [vocabLoaded, setVocabLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -147,9 +161,17 @@ export default function VokabelnPage() {
   }, [ready, profile, router]);
 
   const refresh = useCallback(async () => {
-    const [v, s] = await Promise.all([getVocab(), getStats()]);
-    setVocab(v);
-    setStats(s);
+    try {
+      const v = await loadVocabStrict();
+      setVocab(v);
+      setVocabLoaded(true);
+      setLoadError(false);
+    } catch {
+      // Do NOT blank vocab on a failed load — keep whatever we have and flag it,
+      // so a later write can't overwrite real data with an empty list.
+      setLoadError(true);
+    }
+    setStats(await getStats());
   }, []);
   // Stats-only reconcile — used after a session so we never overwrite the
   // optimistic vocab state (which already matches what we wrote to the server).
@@ -206,8 +228,18 @@ export default function VokabelnPage() {
     }
   }
 
+  // Persist the full client-authoritative list. We never read-modify-write from
+  // the server per change, so a stale/cached read can't drop recent words.
+  function persistVocab(next: VocabEntry[]) {
+    setVocab(next);
+    saveChain.current = saveChain.current
+      .then(() => saveVocab(next))
+      .catch(() => setSaveError(true));
+  }
+
   // Manually move a word to a different phase from the Words list.
   function setWordLevel(entry: VocabEntry, newLevel: number) {
+    if (!vocabLoaded) { setSaveError(true); return; }
     const clamped = Math.max(1, Math.min(5, newLevel));
     if (clamped === getLevel(entry)) return;
     let nr = '';
@@ -216,13 +248,11 @@ export default function VokabelnPage() {
       d.setDate(d.getDate() + (LEVEL_INTERVALS[clamped] ?? 14));
       nr = d.toISOString();
     }
-    setVocab(prev => prev.map(v => (v.id === entry.id ? { ...v, level: clamped, nextReview: nr } : v)));
-    saveChain.current = saveChain.current
-      .then(() => batchUpdateVocabStatus([{ id: entry.id, level: clamped, nextReview: nr }]))
-      .catch(() => setSaveError(true));
+    persistVocab(vocab.map(v => (v.id === entry.id ? { ...v, level: clamped, nextReview: nr } : v)));
   }
 
   function startLernen() {
+    if (!vocabLoaded) return;
     const unseen = VOCAB_CATALOG.filter(e => !seenWords.has(norm(e.es)));
     if (unseen.length === 0) return;
     // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
@@ -234,7 +264,7 @@ export default function VokabelnPage() {
   }
 
   function startWiederholen() {
-    if (dueToday.length === 0) return;
+    if (!vocabLoaded || dueToday.length === 0) return;
     setItems(dueToday.map(v => makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))));
     setCurrent(0);
     setDoneCount(0);
@@ -243,14 +273,14 @@ export default function VokabelnPage() {
   }
 
   // After all queued saves land, reconcile only the streak from the server.
-  // Vocab counts stay on their optimistic values so they never flicker back.
   function drainAndRefresh() {
     saveChain.current = saveChain.current.then(() => refreshStats()).catch(() => {});
   }
 
-  // Rate one word: update the UI instantly (optimistic), advance immediately,
-  // and queue the server write so concurrent saves run in order, not in parallel.
+  // Rate one word: update the UI instantly, advance immediately, and write the
+  // full updated list (queued so saves run in order).
   function handleRate(correct: boolean, conf: Confidence) {
+    if (!vocabLoaded) { setSaveError(true); return; }
     const item = items[current];
     const isLearn = tab === 'lernen';
     const newLevel = computeNewLevel(item.currentLevel, correct, conf);
@@ -258,18 +288,20 @@ export default function VokabelnPage() {
     const now = new Date().toISOString();
     const isLast = current + 1 >= items.length;
 
-    // ── optimistic local update so banner/counts move instantly ──
-    setVocab(prev => {
-      if (isLearn) {
-        const key = norm(item.es);
-        const idx = prev.findIndex(v => norm(v.word) === key);
-        if (idx >= 0) {
-          const copy = [...prev];
-          copy[idx] = { ...copy[idx], level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: copy[idx].reviewCount + 1 };
-          return copy;
-        }
+    // compute the new full list from the current client-side state
+    let next: VocabEntry[];
+    if (isLearn) {
+      const key = norm(item.es);
+      const idx = vocab.findIndex(v => norm(v.word) === key);
+      if (idx >= 0) {
+        next = vocab.map((v, i) =>
+          i === idx
+            ? { ...v, level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: v.reviewCount + 1 }
+            : v
+        );
+      } else {
         const entry: VocabEntry = {
-          id: `local-${key}`,
+          id: crypto.randomUUID(),
           word: item.es,
           translation: item.de,
           example: item.example || undefined,
@@ -279,42 +311,34 @@ export default function VokabelnPage() {
           addedAt: now,
           reviewCount: 1,
         };
-        return [entry, ...prev];
+        next = [entry, ...vocab];
       }
-      return prev.map(v =>
+    } else {
+      next = vocab.map(v =>
         v.id === item.vocabId
           ? { ...v, level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: v.reviewCount + 1 }
           : v
       );
-    });
+    }
+
+    persistVocab(next);
     setStats(prev => (prev ? { ...prev, lastActivity: now } : prev));
     setDoneCount(d => d + 1);
     if (correct) setSessionCorrect(c => c + 1);
 
-    // ── advance the card immediately ──
     if (isLast) setPhase('done');
     else setCurrent(c => c + 1);
 
-    // ── queue the persist (serialized to avoid clobbering writes) ──
     saveChain.current = saveChain.current
-      .then(async () => {
-        if (isLearn) {
-          await processVocabSession([
-            { word: item.es, translation: item.de, example: item.example, level: newLevel, nextReview: nr },
-          ]);
-        } else if (item.vocabId) {
-          await batchUpdateVocabStatus([{ id: item.vocabId, level: newLevel, nextReview: nr }]);
-        }
-        await recordExercise('vocabulary', correct ? 1 : 0, 1);
-      })
-      .catch(() => setSaveError(true));
+      .then(() => recordExercise('vocabulary', correct ? 1 : 0, 1))
+      .catch(() => {});
 
-    // When the session ends, reconcile with the server (real multi-day streak).
     if (isLast) drainAndRefresh();
   }
 
-  async function handleAddWord() {
+  function handleAddWord() {
     setAddError('');
+    if (!vocabLoaded) { setAddError('Still loading your words — try again in a moment.'); return; }
     const spanish = (direction === 'es_to_de' ? addNative : addTarget).trim();
     const german = (direction === 'es_to_de' ? addTarget : addNative).trim();
     if (!spanish || !german) {
@@ -325,18 +349,22 @@ export default function VokabelnPage() {
       setAddError('That word is already in your list.');
       return;
     }
-    await addVocabEntry({
+    const now = new Date().toISOString();
+    const entry: VocabEntry = {
+      id: crypto.randomUUID(),
       word: spanish,
       translation: german,
       example: addExample.trim() || undefined,
       level: 1,
-      nextReview: new Date().toISOString(),
-    });
+      nextReview: now,
+      addedAt: now,
+      reviewCount: 0,
+    };
+    persistVocab([entry, ...vocab]);
     setAddNative('');
     setAddTarget('');
     setAddExample('');
     setShowAddForm(false);
-    await refresh();
   }
 
   const wordsFiltered = vocab
@@ -470,11 +498,23 @@ export default function VokabelnPage() {
           </p>
         </div>
 
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between gap-3">
+            <span>⚠ Couldn&apos;t load your words. Learning is paused so nothing gets overwritten.</span>
+            <button
+              onClick={() => { refresh(); }}
+              className="shrink-0 text-xs font-semibold underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {saveError && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between gap-3">
             <span>⚠ Some changes couldn&apos;t be saved. Check your connection.</span>
             <button
-              onClick={async () => { setSaveError(false); await refresh(); }}
+              onClick={() => { setSaveError(false); refresh(); }}
               className="shrink-0 text-xs font-semibold underline"
             >
               Retry
@@ -544,10 +584,10 @@ export default function VokabelnPage() {
                   </div>
                   <button
                     onClick={startLernen}
-                    disabled={unseenCount === 0}
+                    disabled={unseenCount === 0 || !vocabLoaded}
                     className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-semibold transition-colors"
                   >
-                    {unseenCount > 0 ? 'Start learning →' : 'All words learned'}
+                    {!vocabLoaded ? 'Loading…' : unseenCount > 0 ? 'Start learning →' : 'All words learned'}
                   </button>
                 </div>
                 {addWordSection}
