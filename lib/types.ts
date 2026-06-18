@@ -252,10 +252,18 @@ export interface ArticleRecord {
 // One global row (id='global'). Past-day counts can't be reconstructed from the
 // vocab table (last_reviewed is overwritten), so we snapshot each day's live count
 // and settle finished days into cumulative points lazily on read.
+// A single-day record: one user's activity total on one settled day.
+export interface RaceHighscore {
+  date: string;     // 'YYYY-MM-DD'
+  userId: string;
+  count: number;    // daily activity total (words + 5/verb)
+}
+
 export interface RaceState {
   points: Record<string, number>;                       // cumulative per user_id (may be fractional)
   dailyCounts: Record<string, Record<string, number>>;  // 'YYYY-MM-DD' -> { user_id: count }
   settledDates: string[];                               // days already folded into points
+  highscores: RaceHighscore[];                          // top single-day scores, desc, max 5
 }
 
 export interface RaceRacer {
@@ -271,4 +279,5 @@ export interface RaceResponse {
   today: string;
   racers: RaceRacer[];  // sorted by points desc
   winnerId: string | null;
+  highscores: { date: string; name: string; count: number }[]; // top single-day scores, desc
 }

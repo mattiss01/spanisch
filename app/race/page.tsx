@@ -20,6 +20,13 @@ function fmtPoints(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
+// 'YYYY-MM-DD' -> e.g. "17 Jun". Parsed as local midnight so the date doesn't shift.
+function fmtDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 export default function RacePage() {
   const [race, setRace] = useState<RaceResponse | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -49,7 +56,7 @@ export default function RacePage() {
     );
   }
 
-  const { goal, racers, winnerId } = race;
+  const { goal, racers, winnerId, highscores } = race;
   const winner = racers.find(r => r.id === winnerId);
   // "Today so far" ordered by today's count (most active first), only those active.
   const todayActive = [...racers]
@@ -170,6 +177,39 @@ export default function RacePage() {
           <p className="text-[11px] text-gray-400 pt-1">
             Points are locked in at the end of each day (Europe/Berlin time).
           </p>
+        </section>
+
+        {/* ===== All-time daily records ===== */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+          <h2 className="font-bold text-gray-900 text-base flex items-center gap-2">
+            <span>🏅</span> Daily records
+          </h2>
+          {highscores.length === 0 ? (
+            <p className="text-sm text-gray-400 py-2 text-center">No records yet — go set one!</p>
+          ) : (
+            <div className="space-y-2">
+              {highscores.map((h, i) => {
+                const medal = ['🥇', '🥈', '🥉'][i];
+                return (
+                  <div key={`${h.date}-${h.name}-${i}`} className="flex items-center gap-3">
+                    <span className="w-6 text-center text-sm shrink-0">
+                      {medal ?? <span className="text-gray-400">{i + 1}.</span>}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-800 flex-1 truncate">
+                      {h.name}
+                    </span>
+                    <span className="text-xs text-gray-400 tabular-nums shrink-0">
+                      {fmtDate(h.date)}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900 tabular-nums w-10 text-right shrink-0">
+                      {h.count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[11px] text-gray-400 pt-1">Highest single-day scores ever.</p>
         </section>
       </div>
     </main>

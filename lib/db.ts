@@ -209,7 +209,7 @@ export async function setArticleTopics(userId: string, topics: ArticleTopic[]): 
 // ─── race (one global jsonb row, id='global') ────────────────────────────────────
 
 const RACE_ROW_ID = 'global';
-const EMPTY_RACE: RaceState = { points: {}, dailyCounts: {}, settledDates: [] };
+const EMPTY_RACE: RaceState = { points: {}, dailyCounts: {}, settledDates: [], highscores: [] };
 
 export async function getRaceState(): Promise<RaceState> {
   const { data, error } = await db()
@@ -224,6 +224,7 @@ export async function getRaceState(): Promise<RaceState> {
     points: s.points ?? {},
     dailyCounts: s.dailyCounts ?? {},
     settledDates: s.settledDates ?? [],
+    highscores: s.highscores ?? [],
   };
 }
 

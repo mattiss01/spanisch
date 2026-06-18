@@ -301,7 +301,7 @@ export async function addGeneratedTopic(topic: ArticleTopic): Promise<void> {
 
 // ─── the race (global standings) ───────────────────────────────────────────────
 
-const emptyRace: RaceResponse = { goal: 100, today: '', racers: [], winnerId: null };
+const emptyRace: RaceResponse = { goal: 100, today: '', racers: [], winnerId: null, highscores: [] };
 
 // Global leaderboard — no user header needed. Tolerant read for display only.
 export async function getRace(): Promise<RaceResponse> {

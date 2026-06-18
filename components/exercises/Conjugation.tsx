@@ -74,8 +74,6 @@ export default function Conjugation({ exercise, onComplete }: Props) {
     setChecked(false);
   }
 
-  const allFilled = answers.every(row => row.every(a => a.trim().length > 0));
-
   return (
     <div className="space-y-5">
       {/* Verb header */}
@@ -223,8 +221,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
       {!checked ? (
         <button
           onClick={check}
-          disabled={!allFilled}
-          className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-medium transition-colors"
+          className="w-full py-3 bg-red-700 hover:bg-red-800 text-white rounded-xl font-medium transition-colors"
         >
           Check
         </button>

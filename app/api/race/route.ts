@@ -8,7 +8,7 @@ import {
 } from '@/lib/db';
 import { berlinDayStart, awardPoints } from '@/lib/race';
 import { PROFILES } from '@/lib/profiles';
-import { RaceResponse } from '@/lib/types';
+import { RaceResponse, RaceHighscore } from '@/lib/types';
 
 const GOAL = 100;
 // Keep ~30 days of settled snapshots so the global row can't grow without bound.
@@ -22,10 +22,13 @@ const CONJUGATION_WEIGHT = 5;
 export async function GET() {
   const { date: today } = berlinDayStart();
 
-  // Build the response from a points map + today's live counts.
+  const nameOf = (id: string) => PROFILES.find(p => p.id === id)?.name ?? id;
+
+  // Build the response from a points map + today's live counts + persisted records.
   function buildResponse(
     points: Record<string, number>,
-    live: Record<string, number>
+    live: Record<string, number>,
+    persisted: RaceHighscore[] = []
   ): RaceResponse {
     const todayPoints = awardPoints(live);
     const racers = PROFILES.map(p => ({
@@ -36,8 +39,20 @@ export async function GET() {
       todayPoints: todayPoints[p.id] ?? 0,
     })).sort((a, b) => b.points - a.points || b.todayCount - a.todayCount);
 
+    // Top-5 single-day records: persisted (settled) plus today's live as a
+    // provisional candidate, so a record-breaking day shows up immediately.
+    const candidates: RaceHighscore[] = [
+      ...persisted,
+      ...Object.entries(live).map(([userId, count]) => ({ date: today, userId, count })),
+    ];
+    const highscores = candidates
+      .filter(h => h.count > 0)
+      .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date))
+      .slice(0, 5)
+      .map(h => ({ date: h.date, name: nameOf(h.userId), count: h.count }));
+
     const winner = racers.find(r => r.points >= GOAL);
-    return { goal: GOAL, today, racers, winnerId: winner?.id ?? null };
+    return { goal: GOAL, today, racers, winnerId: winner?.id ?? null, highscores };
   }
 
   // Without a database, return an empty (zeroed) board rather than erroring.
@@ -74,11 +89,19 @@ export async function GET() {
           if (!ids.has(id)) continue;
           state.points[id] = (state.points[id] ?? 0) + pts;
         }
+        // Record each user's day total as a single-day highscore candidate.
+        for (const [id, count] of Object.entries(state.dailyCounts[d])) {
+          if (ids.has(id) && count > 0) state.highscores.push({ date: d, userId: id, count });
+        }
         settled.add(d);
         state.settledDates.push(d);
         changed = true;
       }
     }
+
+    // Keep only the top 5 single-day records ever.
+    state.highscores.sort((a, b) => b.count - a.count || a.date.localeCompare(b.date));
+    state.highscores = state.highscores.slice(0, 5);
 
     // Prune old settled snapshots to bound the row size.
     const cutoff = new Date(Date.now() - KEEP_DAILY_DAYS * 86400000).toISOString().slice(0, 10);
@@ -93,7 +116,7 @@ export async function GET() {
     await setRaceState(state);
     void changed;
 
-    return NextResponse.json(buildResponse(state.points, liveTracked));
+    return NextResponse.json(buildResponse(state.points, liveTracked, state.highscores));
   } catch {
     // Never break the page on a transient DB error — show a zeroed board.
     return NextResponse.json(buildResponse({}, {}));
