@@ -635,7 +635,9 @@ function Flashcard({
   const [answer, setAnswer] = useState('');
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [retype, setRetype] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const retypeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -643,6 +645,13 @@ function Flashcard({
 
   const evaluation = checked ? checkAnswer(answer, item.answer) : null;
   const correct = evaluation?.correct ?? false;
+
+  // On a wrong answer, the learner must type the correct word once before rating.
+  const retypeOk = checkAnswer(retype, item.answer).correct;
+
+  useEffect(() => {
+    if (checked && !correct) retypeRef.current?.focus();
+  }, [checked, correct]);
 
   async function rate(asCorrect: boolean, conf: Confidence) {
     if (saving) return;
@@ -745,27 +754,47 @@ function Flashcard({
             </div>
           ) : (
             <>
+              {/* Write-it-again reinforcement */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">
+                  Write it again to remember:
+                </label>
+                <input
+                  ref={retypeRef}
+                  type="text"
+                  value={retype}
+                  onChange={e => setRetype(e.target.value)}
+                  placeholder={item.answer}
+                  className={`w-full border-b-2 bg-transparent text-lg text-center py-1.5 outline-none transition-colors ${
+                    retypeOk ? 'border-green-500 text-green-700' : 'border-gray-300 focus:border-red-600'
+                  }`}
+                />
+                <p className="text-[11px] text-gray-400 text-center mt-1">
+                  {retypeOk ? '✓ Now choose below' : 'Type the correct word to continue'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => rate(false, 'sicher')}
-                  disabled={saving}
-                  className="py-2.5 rounded-xl text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors"
+                  disabled={saving || !retypeOk}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-40 transition-colors"
                 >
                   Again
                   <span className="block text-[10px] font-normal opacity-70">review today</span>
                 </button>
                 <button
                   onClick={() => rate(true, 'unsicher')}
-                  disabled={saving}
-                  className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                  disabled={saving || !retypeOk}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 transition-colors"
                 >
                   Keep phase
                   <span className="block text-[10px] font-normal opacity-70">typo / misclick</span>
                 </button>
                 <button
                   onClick={() => rate(true, 'bekannt')}
-                  disabled={saving}
-                  className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
+                  disabled={saving || !retypeOk}
+                  className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-40 transition-colors"
                 >
                   Known
                   <span className="block text-[10px] font-normal opacity-80">mark known</span>
