@@ -94,21 +94,19 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
 
   const variants = splitVariants(correct);
 
-  // Exact / prefix match against any variant
+  // Exact match against any variant (articles/parentheticals already stripped by norm)
   for (const variant of variants) {
     const c = norm(variant);
     if (c.length === 0) continue;
-    if (u === c || c.startsWith(u) || u.startsWith(c)) return { correct: true };
+    if (u === c) return { correct: true };
   }
 
-  // Accent-insensitive match against any variant
+  // Accent-insensitive exact match against any variant
   const su = stripAccents(u);
   for (const variant of variants) {
     const sc = stripAccents(norm(variant));
     if (sc.length === 0) continue;
-    if (su === sc || sc.startsWith(su) || su.startsWith(sc)) {
-      return { correct: true, accentHint: variant };
-    }
+    if (su === sc) return { correct: true, accentHint: variant };
   }
 
   return { correct: false };
@@ -201,6 +199,27 @@ export default function VokabelnPage() {
   function switchTab(t: Tab) {
     setTab(t);
     reset();
+    // Opening the Words list: let pending saves land, then reload so entries
+    // carry their real server ids (needed for manual phase edits).
+    if (t === 'words') {
+      saveChain.current = saveChain.current.then(() => refresh()).catch(() => {});
+    }
+  }
+
+  // Manually move a word to a different phase from the Words list.
+  function setWordLevel(entry: VocabEntry, newLevel: number) {
+    const clamped = Math.max(1, Math.min(5, newLevel));
+    if (clamped === getLevel(entry)) return;
+    let nr = '';
+    if (clamped < 5) {
+      const d = new Date();
+      d.setDate(d.getDate() + (LEVEL_INTERVALS[clamped] ?? 14));
+      nr = d.toISOString();
+    }
+    setVocab(prev => prev.map(v => (v.id === entry.id ? { ...v, level: clamped, nextReview: nr } : v)));
+    saveChain.current = saveChain.current
+      .then(() => batchUpdateVocabStatus([{ id: entry.id, level: clamped, nextReview: nr }]))
+      .catch(() => setSaveError(true));
   }
 
   function startLernen() {
@@ -661,6 +680,24 @@ export default function VokabelnPage() {
                           {entry.example && (
                             <p className="text-gray-400 text-xs mt-0.5 italic">&bdquo;{entry.example}&ldquo;</p>
                           )}
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button
+                            onClick={() => setWordLevel(entry, level + 1)}
+                            disabled={level >= 5}
+                            title="Move up a phase"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            onClick={() => setWordLevel(entry, level - 1)}
+                            disabled={level <= 1}
+                            title="Move down a phase"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
+                          >
+                            ▼
+                          </button>
                         </div>
                       </div>
                     );
