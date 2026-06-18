@@ -107,7 +107,7 @@ export default function RacePage() {
                     <div className="absolute left-0 right-7 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-gray-200" />
                     {/* car */}
                     <span
-                      className="absolute top-1/2 -translate-y-1/2 text-lg transition-all duration-700 select-none"
+                      className="absolute top-1/2 -translate-y-1/2 -scale-x-100 text-lg transition-all duration-700 select-none"
                       style={{ left: `calc(${pct} * (100% - 3.25rem))` }}
                     >
                       🏎️
