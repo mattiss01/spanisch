@@ -14,15 +14,6 @@ function getUserId(): string {
   return localStorage.getItem(PROFILE_STORAGE_KEY) ?? 'default';
 }
 
-function normWord(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/^(el|la|los|las|un|una|unos|unas)\s+/i, '')
-    .replace(/\s*\(.*?\)\s*/g, '')
-    .trim();
-}
-
 // Tolerant read — returns fallback on any error. Use only for display.
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -58,135 +49,31 @@ async function putJson(path: string, data: unknown): Promise<void> {
   if (!res.ok) throw new Error(`Write failed for ${path}: HTTP ${res.status}`);
 }
 
+async function postJson(path: string, data: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Write failed for ${path}: HTTP ${res.status}`);
+}
+
 // ─── vocab ───────────────────────────────────────────────────────────────────
 
 export async function getVocab(): Promise<VocabEntry[]> {
   return getJson('/api/data/vocab', []);
 }
 
-// Strict load — throws on failure so the caller can avoid treating a failed
-// read as "no words" (which would let a later write wipe real progress).
+// Strict load — throws on failure so the caller never treats a failed read as
+// "no words". Backed by Postgres (Supabase), so reads are strongly consistent.
 export async function loadVocabStrict(): Promise<VocabEntry[]> {
   return getJsonStrict<VocabEntry[]>('/api/data/vocab');
 }
 
-// Write the full, client-authoritative word list. No server read-modify-write,
-// so a stale/cached read can never drop words that were just added.
-export async function saveVocab(entries: VocabEntry[]): Promise<void> {
-  await putJson('/api/data/vocab', entries);
-}
-
-export async function addVocabEntry(
-  entry: Omit<VocabEntry, 'id' | 'addedAt' | 'reviewCount'>
-): Promise<void> {
-  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  const newEntry: VocabEntry = {
-    ...entry,
-    id: crypto.randomUUID(),
-    addedAt: new Date().toISOString(),
-    reviewCount: 0,
-  };
-  await putJson('/api/data/vocab', [newEntry, ...entries]);
-}
-
-export async function removeVocabEntry(id: string): Promise<void> {
-  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  await putJson('/api/data/vocab', entries.filter(e => e.id !== id));
-}
-
-export async function updateVocabReview(id: string): Promise<void> {
-  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  await putJson(
-    '/api/data/vocab',
-    entries.map(e =>
-      e.id === id
-        ? { ...e, reviewCount: e.reviewCount + 1, lastReviewed: new Date().toISOString() }
-        : e
-    )
-  );
-}
-
-export async function updateVocabStatus(id: string, correct: boolean): Promise<void> {
-  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  const now = new Date().toISOString();
-  await putJson(
-    '/api/data/vocab',
-    entries.map(e =>
-      e.id === id
-        ? {
-            ...e,
-            level: correct ? 5 : 1,
-            nextReview: correct ? '' : now,
-            reviewCount: e.reviewCount + 1,
-            lastReviewed: now,
-          }
-        : e
-    )
-  );
-}
-
-// Batch-save for a full learning/review session (2 API calls total)
-export async function processVocabSession(
-  session: Array<{ word: string; translation: string; example?: string; level: number; nextReview: string }>
-): Promise<void> {
-  const existing = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  const existingByNorm = new Map(existing.map(v => [normWord(v.word), v.id]));
-
-  const updated = existing.map(e => ({ ...e }));
-  const toAdd: VocabEntry[] = [];
-  const now = new Date().toISOString();
-
-  for (const item of session) {
-    const existingId = existingByNorm.get(normWord(item.word));
-    if (existingId) {
-      const idx = updated.findIndex(e => e.id === existingId);
-      if (idx >= 0) {
-        updated[idx] = {
-          ...updated[idx],
-          level: item.level,
-          nextReview: item.nextReview,
-          reviewCount: updated[idx].reviewCount + 1,
-          lastReviewed: now,
-        };
-      }
-    } else {
-      toAdd.push({
-        word: item.word,
-        translation: item.translation,
-        example: item.example,
-        level: item.level,
-        nextReview: item.nextReview,
-        id: crypto.randomUUID(),
-        addedAt: now,
-        reviewCount: 0,
-      });
-    }
-  }
-
-  await putJson('/api/data/vocab', [...toAdd, ...updated]);
-}
-
-// Batch-update existing words by id (for wiederholen sessions)
-export async function batchUpdateVocabStatus(
-  updates: { id: string; level: number; nextReview: string }[]
-): Promise<void> {
-  const entries = await getJsonStrict<VocabEntry[]>('/api/data/vocab');
-  const map = new Map(updates.map(u => [u.id, u]));
-  const now = new Date().toISOString();
-  await putJson(
-    '/api/data/vocab',
-    entries.map(e => {
-      const upd = map.get(e.id);
-      if (!upd) return e;
-      return {
-        ...e,
-        level: upd.level,
-        nextReview: upd.nextReview,
-        reviewCount: e.reviewCount + 1,
-        lastReviewed: now,
-      };
-    })
-  );
+// Upsert a single word (per-row in the DB, keyed by user + normalized word).
+// One word in flight per call, so nothing can clobber the rest of the list.
+export async function upsertVocabWord(entry: VocabEntry): Promise<void> {
+  await postJson('/api/data/vocab', entry);
 }
 
 // ─── stats ───────────────────────────────────────────────────────────────────

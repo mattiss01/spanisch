@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadVocabStrict, saveVocab, getStats, recordExercise } from '@/lib/storage';
+import { loadVocabStrict, upsertVocabWord, getStats, recordExercise } from '@/lib/storage';
 import { VocabEntry, ProgressStats } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { useProfile } from '@/lib/use-profile';
@@ -228,12 +228,12 @@ export default function VokabelnPage() {
     }
   }
 
-  // Persist the full client-authoritative list. We never read-modify-write from
-  // the server per change, so a stale/cached read can't drop recent words.
-  function persistVocab(next: VocabEntry[]) {
+  // Update local state and persist only the one changed/added word (per-row upsert).
+  // A single word in flight can never clobber the rest of the list.
+  function persistVocab(next: VocabEntry[], changed: VocabEntry) {
     setVocab(next);
     saveChain.current = saveChain.current
-      .then(() => saveVocab(next))
+      .then(() => upsertVocabWord(changed))
       .catch(() => setSaveError(true));
   }
 
@@ -248,7 +248,8 @@ export default function VokabelnPage() {
       d.setDate(d.getDate() + (LEVEL_INTERVALS[clamped] ?? 14));
       nr = d.toISOString();
     }
-    persistVocab(vocab.map(v => (v.id === entry.id ? { ...v, level: clamped, nextReview: nr } : v)));
+    const changed = { ...entry, level: clamped, nextReview: nr };
+    persistVocab(vocab.map(v => (v.id === entry.id ? changed : v)), changed);
   }
 
   function startLernen() {
@@ -288,19 +289,17 @@ export default function VokabelnPage() {
     const now = new Date().toISOString();
     const isLast = current + 1 >= items.length;
 
-    // compute the new full list from the current client-side state
+    // compute the changed/added word and the new full list (for local display)
+    let changed: VocabEntry;
     let next: VocabEntry[];
     if (isLearn) {
       const key = norm(item.es);
       const idx = vocab.findIndex(v => norm(v.word) === key);
       if (idx >= 0) {
-        next = vocab.map((v, i) =>
-          i === idx
-            ? { ...v, level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: v.reviewCount + 1 }
-            : v
-        );
+        changed = { ...vocab[idx], level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: vocab[idx].reviewCount + 1 };
+        next = vocab.map((v, i) => (i === idx ? changed : v));
       } else {
-        const entry: VocabEntry = {
+        changed = {
           id: crypto.randomUUID(),
           word: item.es,
           translation: item.de,
@@ -311,17 +310,15 @@ export default function VokabelnPage() {
           addedAt: now,
           reviewCount: 1,
         };
-        next = [entry, ...vocab];
+        next = [changed, ...vocab];
       }
     } else {
-      next = vocab.map(v =>
-        v.id === item.vocabId
-          ? { ...v, level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: v.reviewCount + 1 }
-          : v
-      );
+      const idx = vocab.findIndex(v => v.id === item.vocabId);
+      changed = { ...vocab[idx], level: newLevel, nextReview: nr, lastReviewed: now, reviewCount: vocab[idx].reviewCount + 1 };
+      next = vocab.map(v => (v.id === item.vocabId ? changed : v));
     }
 
-    persistVocab(next);
+    persistVocab(next, changed);
     setStats(prev => (prev ? { ...prev, lastActivity: now } : prev));
     setDoneCount(d => d + 1);
     if (correct) setSessionCorrect(c => c + 1);
@@ -360,7 +357,7 @@ export default function VokabelnPage() {
       addedAt: now,
       reviewCount: 0,
     };
-    persistVocab([entry, ...vocab]);
+    persistVocab([entry, ...vocab], entry);
     setAddNative('');
     setAddTarget('');
     setAddExample('');
