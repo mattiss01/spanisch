@@ -6,8 +6,9 @@ import { VocabEntry, ProgressStats, ConjugationRecord } from '@/lib/types';
 // TEMPORARY one-time migration: copy each user's data from Vercel Blob into
 // Supabase. Gated by ?key=<MIGRATE_SECRET>. Delete this route after running.
 export async function GET(req: NextRequest) {
-  const key = req.nextUrl.searchParams.get('key');
-  if (!process.env.MIGRATE_SECRET || key !== process.env.MIGRATE_SECRET) {
+  const key = req.nextUrl.searchParams.get('key')?.trim();
+  const secret = process.env.MIGRATE_SECRET?.trim();
+  if (!secret || key !== secret) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
