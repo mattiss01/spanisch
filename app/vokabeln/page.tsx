@@ -125,6 +125,7 @@ export default function VokabelnPage() {
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [wordSearch, setWordSearch] = useState('');
   const [wordSort, setWordSort] = useState<WordSort>('alpha');
+  const [wordSortDir, setWordSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Flashcard session state (one word at a time)
   const [phase, setPhase] = useState<Phase>('idle');
@@ -327,16 +328,20 @@ export default function VokabelnPage() {
         v.translation.toLowerCase().includes(wordSearch.toLowerCase())
     )
     .sort((a, b) => {
-      if (wordSort === 'phase') return getLevel(a) - getLevel(b);
-      if (wordSort === 'review') {
+      let cmp: number;
+      if (wordSort === 'phase') {
+        cmp = getLevel(a) - getLevel(b);
+      } else if (wordSort === 'review') {
         const ra = a.nextReview ? new Date(a.nextReview).getTime() : Infinity;
         const rb = b.nextReview ? new Date(b.nextReview).getTime() : Infinity;
-        return ra - rb;
+        cmp = ra - rb;
+      } else {
+        // alphabetical by the language being learned
+        const la = (direction === 'es_to_de' ? a.translation : a.word).toLowerCase();
+        const lb = (direction === 'es_to_de' ? b.translation : b.word).toLowerCase();
+        cmp = la.localeCompare(lb);
       }
-      // alphabetical by the primary (displayed) word
-      const pa = (direction === 'es_to_de' ? a.word : a.translation).toLowerCase();
-      const pb = (direction === 'es_to_de' ? b.word : b.translation).toLowerCase();
-      return pa.localeCompare(pb);
+      return wordSortDir === 'asc' ? cmp : -cmp;
     });
 
   const addWordSection = (
@@ -595,19 +600,25 @@ export default function VokabelnPage() {
                       ['alpha', 'A–Z'],
                       ['phase', 'Phase'],
                       ['review', 'Next review'],
-                    ] as [WordSort, string][]).map(([id, label]) => (
-                      <button
-                        key={id}
-                        onClick={() => setWordSort(id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                          wordSort === id
-                            ? 'bg-red-700 text-white'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    ] as [WordSort, string][]).map(([id, label]) => {
+                      const active = wordSort === id;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            if (active) setWordSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+                            else { setWordSort(id); setWordSortDir('asc'); }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                            active
+                              ? 'bg-red-700 text-white'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {label}{active ? (wordSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="space-y-2">
