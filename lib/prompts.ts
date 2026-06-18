@@ -23,6 +23,8 @@ export function getPrompt(
       return vocabularyPrompt(topic, difficulty);
     case 'conversation':
       return conversationPrompt(topic, difficulty);
+    default:
+      throw new Error(`No prompt for exercise type: ${type}`);
   }
 }
 

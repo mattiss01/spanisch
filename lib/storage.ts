@@ -4,6 +4,8 @@ import {
   ExerciseType,
   ConjugationRecord,
   ConjugationSectionRecord,
+  ArticleRecord,
+  ArticleItem,
 } from './types';
 import { PROFILE_STORAGE_KEY } from './profiles';
 
@@ -201,4 +203,71 @@ export async function upsertConjugationAttempt(
   }
 
   await putJson('/api/data/conjugation', records);
+}
+
+// ─── article (German declension topics) ───────────────────────────────────────
+
+export async function getArticleRecords(): Promise<ArticleRecord[]> {
+  const data = await getJson<unknown[]>('/api/data/artikel', []);
+  return data.filter(
+    (r): r is ArticleRecord =>
+      typeof r === 'object' && r !== null && typeof (r as ArticleRecord).id === 'string'
+  );
+}
+
+// Records one attempt at a topic: counts correct answers and stores the wrong
+// ones. Read-modify-write of the single per-user JSONB row, like conjugation.
+export async function upsertArticleAttempt(
+  topicId: string,
+  topic: string,
+  topic_es: string,
+  items: ArticleItem[],
+  userAnswers: string[]
+): Promise<void> {
+  const raw = await getJsonStrict<unknown[]>('/api/data/artikel');
+  const records = raw.filter(
+    (r): r is ArticleRecord =>
+      typeof r === 'object' && r !== null && typeof (r as ArticleRecord).id === 'string'
+  );
+
+  const correct = items.map((it, i) => {
+    const a = userAnswers[i]?.trim().toLowerCase() ?? '';
+    return a === it.answer.toLowerCase() || (it.alternatives ?? []).some(alt => alt.toLowerCase() === a);
+  });
+  const totalCorrect = correct.filter(Boolean).length;
+  const totalQuestions = items.length;
+  const recentMistakes = items
+    .map((it, i) =>
+      !correct[i]
+        ? { prompt: `${it.before}___${it.after}`, correct: it.answer, userAnswer: userAnswers[i] ?? '' }
+        : null
+    )
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+  const mastered = recentMistakes.length === 0;
+
+  const existing = records.find(r => r.id === topicId);
+  if (existing) {
+    existing.totalAttempts += 1;
+    existing.totalCorrect += totalCorrect;
+    existing.totalQuestions += totalQuestions;
+    existing.recentMistakes = recentMistakes;
+    existing.lastAttempted = new Date().toISOString();
+    existing.mastered = mastered;
+    existing.topic = topic;
+    existing.topic_es = topic_es;
+  } else {
+    records.unshift({
+      id: topicId,
+      topic,
+      topic_es,
+      totalAttempts: 1,
+      totalCorrect,
+      totalQuestions,
+      recentMistakes,
+      lastAttempted: new Date().toISOString(),
+      mastered,
+    });
+  }
+
+  await putJson('/api/data/artikel', records);
 }

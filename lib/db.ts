@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { VocabEntry, ProgressStats, ConjugationRecord } from './types';
+import { VocabEntry, ProgressStats, ConjugationRecord, ArticleRecord } from './types';
 
 // ─── client ──────────────────────────────────────────────────────────────────
 
@@ -164,6 +164,25 @@ export async function getConjugation(userId: string): Promise<ConjugationRecord[
 export async function setConjugation(userId: string, records: ConjugationRecord[]): Promise<void> {
   const { error } = await db()
     .from('conjugation')
+    .upsert({ user_id: userId, data: records }, { onConflict: 'user_id' });
+  if (error) throw new Error(error.message);
+}
+
+// ─── article (one jsonb row) ─────────────────────────────────────────────────────
+
+export async function getArticle(userId: string): Promise<ArticleRecord[]> {
+  const { data, error } = await db()
+    .from('article')
+    .select('data')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return ((data?.data as ArticleRecord[]) ?? []);
+}
+
+export async function setArticle(userId: string, records: ArticleRecord[]): Promise<void> {
+  const { error } = await db()
+    .from('article')
     .upsert({ user_id: userId, data: records }, { onConflict: 'user_id' });
   if (error) throw new Error(error.message);
 }

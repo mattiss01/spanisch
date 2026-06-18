@@ -7,6 +7,8 @@ import { useProfile } from '@/lib/use-profile';
 const nav = [
   { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
   { href: '/konjugation', label: 'Verbs', icon: '🔤' },
+  // German declension practice — only relevant for Spanish→German learners (Marina).
+  { href: '/artikel', label: 'Artikel', icon: '🇩🇪', onlyDirection: 'es_to_de' as const },
   { href: '/help', label: 'Help', icon: '❓' },
 ];
 
@@ -16,6 +18,8 @@ export default function Navigation() {
 
   const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
   const subtitle = profile?.direction === 'es_to_de' ? 'Spanish → German' : 'German → Spanish';
+
+  const items = nav.filter(n => !n.onlyDirection || n.onlyDirection === profile?.direction);
 
   return (
     <>
@@ -33,7 +37,7 @@ export default function Navigation() {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
-          {nav.map(({ href, label, icon }) => {
+          {items.map(({ href, label, icon }) => {
             const active = path.startsWith(href);
             return (
               <Link
@@ -63,7 +67,7 @@ export default function Navigation() {
 
       {/* ── Mobile bottom bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 flex safe-area-inset-bottom">
-        {nav.map(({ href, label, icon }) => {
+        {items.map(({ href, label, icon }) => {
           const active = path.startsWith(href);
           return (
             <Link

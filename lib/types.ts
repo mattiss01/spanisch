@@ -6,7 +6,8 @@ export type ExerciseType =
   | 'conjugation'
   | 'reading'
   | 'vocabulary'
-  | 'conversation';
+  | 'conversation'
+  | 'article';
 
 export type Difficulty = 'B1' | 'B2';
 
@@ -193,4 +194,43 @@ export interface ConjugationRecord {
   totalAttempts: number;
   lastAttempted: string;
   mastered: boolean;    // true when all sections had 0 mistakes in last attempt
+}
+
+// ─── Articles (German declension practice for es_to_de learners) ───────────────
+
+export interface ArticleItem {
+  before: string;          // sentence text before the blank
+  answer: string;          // correct form, e.g. "dem"
+  after: string;           // sentence text after the blank
+  options: string[];       // 3–4 choices for multiple-choice mode (must include answer)
+  alternatives?: string[]; // other accepted typed answers (only for genuine ambiguity)
+  hint_es: string;         // short Spanish reason, e.g. "Dativo (objeto indirecto), masculino"
+}
+
+export interface ArticleExercise {
+  type: 'article';
+  topicId: string;
+  title: string;           // German topic name
+  title_es: string;        // Spanish topic name
+  instruction: string;     // Spanish instruction
+  explanation_es: string;  // Spanish grammar explanation (shown after checking)
+  items: ArticleItem[];
+}
+
+export interface ArticleMistake {
+  prompt: string;          // the sentence with a "___" marking the blank
+  correct: string;
+  userAnswer: string;
+}
+
+export interface ArticleRecord {
+  id: string;              // topicId
+  topic: string;           // German name
+  topic_es: string;        // Spanish name
+  totalAttempts: number;
+  totalCorrect: number;
+  totalQuestions: number;
+  recentMistakes: ArticleMistake[];
+  lastAttempted: string;
+  mastered: boolean;       // true when last attempt had 0 mistakes
 }
