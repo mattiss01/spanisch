@@ -15,6 +15,8 @@ export const PROFILES: Profile[] = [
   { id: 'mattis', name: 'Mattis', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
   { id: 'marina', name: 'Marina', direction: 'es_to_de', nativeLang: 'es', targetLang: 'de' },
   { id: 'emmi', name: 'Emmi', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es', level: 'A1' },
+  { id: 'jakob', name: 'Jakob', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
+  { id: 'robert', name: 'Robert', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
 ];
 
 export function getProfile(id: string): Profile | null {
