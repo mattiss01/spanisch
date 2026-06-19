@@ -8,16 +8,12 @@ import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
 import { isBeginner } from '@/lib/profiles';
+import { berlinToday } from '@/lib/race';
 import StreakBanner from '@/components/StreakBanner';
 
 const DAILY_GOAL = 20;
 // One Learn session introduces this many new words; finish early or keep going.
 const ROUND_SIZE = 20;
-
-function isToday(iso?: string): boolean {
-  if (!iso) return false;
-  return new Date(iso).toDateString() === new Date().toDateString();
-}
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
@@ -219,7 +215,9 @@ export default function VokabelnPage() {
   const seenWords = new Set(vocab.map(v => norm(v.word)));
   const unseenCount = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).length;
 
-  const todayCount = vocab.filter(v => isToday(v.lastReviewed)).length;
+  // Every flashcard done today counts (repeats included) — sourced from the
+  // per-day stats counter, not distinct words.
+  const todayCount = stats?.daily?.[berlinToday()] ?? 0;
   // If there's activity today, the streak is at least 1 even if stats lag behind.
   const displayStreak = Math.max(stats?.streak ?? 0, todayCount > 0 ? 1 : 0);
 
@@ -342,7 +340,16 @@ export default function VokabelnPage() {
     }
 
     persistVocab(next, changed);
-    setStats(prev => (prev ? { ...prev, lastActivity: now } : prev));
+    // Optimistically bump today's flashcard count so the goal moves per card.
+    setStats(prev => {
+      if (!prev) return prev;
+      const key = berlinToday();
+      return {
+        ...prev,
+        lastActivity: now,
+        daily: { ...(prev.daily ?? {}), [key]: (prev.daily?.[key] ?? 0) + 1 },
+      };
+    });
     setDoneCount(d => d + 1);
     if (correct) setSessionCorrect(c => c + 1);
 

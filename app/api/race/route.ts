@@ -3,7 +3,7 @@ import {
   dbConfigured,
   getRaceState,
   setRaceState,
-  getDailyVocabCounts,
+  getDailyActionCounts,
   getDailyConjugationCounts,
 } from '@/lib/db';
 import { berlinDayStart, awardPoints } from '@/lib/race';
@@ -62,17 +62,18 @@ export async function GET() {
 
   try {
     const { startISO } = berlinDayStart();
-    const [state, vocab, verbs] = await Promise.all([
+    const [state, actions, verbs] = await Promise.all([
       getRaceState(),
-      getDailyVocabCounts(startISO),
+      getDailyActionCounts(today),
       getDailyConjugationCounts(startISO),
     ]);
 
-    // Daily activity per profile = words practiced + 5 per verb conjugated today.
+    // Daily activity per profile = every flashcard done today (repeats included)
+    // plus 5 per verb conjugated today.
     const ids = new Set(PROFILES.map(p => p.id));
     const liveTracked: Record<string, number> = {};
     for (const id of ids) {
-      const total = (vocab[id] ?? 0) + (verbs[id] ?? 0) * CONJUGATION_WEIGHT;
+      const total = (actions[id] ?? 0) + (verbs[id] ?? 0) * CONJUGATION_WEIGHT;
       if (total > 0) liveTracked[id] = total;
     }
 

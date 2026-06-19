@@ -163,6 +163,9 @@ export interface ProgressStats {
   streak: number;
   lastActivity: string;
   exercisesByType: Partial<Record<ExerciseType, number>>;
+  // Per-day flashcard count (Berlin date 'YYYY-MM-DD' -> actions). Every flashcard
+  // counts, including repeats of the same word — drives the daily goal and the race.
+  daily?: Record<string, number>;
 }
 
 export interface ChatMessage {

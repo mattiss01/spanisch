@@ -114,6 +114,7 @@ interface StatsRow {
   streak: number;
   last_activity: string | null;
   exercises_by_type: Record<string, number>;
+  daily: Record<string, number> | null;
 }
 
 export async function getStats(userId: string): Promise<ProgressStats | null> {
@@ -132,6 +133,7 @@ export async function getStats(userId: string): Promise<ProgressStats | null> {
     streak: r.streak,
     lastActivity: r.last_activity ?? '',
     exercisesByType: r.exercises_by_type ?? {},
+    daily: r.daily ?? {},
   };
 }
 
@@ -144,9 +146,23 @@ export async function setStats(userId: string, s: ProgressStats): Promise<void> 
     streak: s.streak,
     last_activity: s.lastActivity || null,
     exercises_by_type: s.exercisesByType ?? {},
+    daily: s.daily ?? {},
   };
   const { error } = await db().from('stats').upsert(row, { onConflict: 'user_id' });
   if (error) throw new Error(error.message);
+}
+
+// Flashcard actions per user on `date` (Berlin 'YYYY-MM-DD'), from the stats rows.
+// Counts every flashcard, including repeated reviews of the same word.
+export async function getDailyActionCounts(date: string): Promise<Record<string, number>> {
+  const { data, error } = await db().from('stats').select('user_id, daily');
+  if (error) throw new Error(error.message);
+  const counts: Record<string, number> = {};
+  for (const row of (data as { user_id: string; daily: Record<string, number> | null }[]) ?? []) {
+    const n = row.daily?.[date] ?? 0;
+    if (n > 0) counts[row.user_id] = n;
+  }
+  return counts;
 }
 
 // ─── conjugation (one jsonb row) ─────────────────────────────────────────────────

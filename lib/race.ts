@@ -27,6 +27,12 @@ export function berlinDayStart(now: Date = new Date()): { date: string; startISO
   return { date, startISO };
 }
 
+// Just the current day (YYYY-MM-DD) in Europe/Berlin. Shared by client and server
+// so the daily activity counter, the streak goal, and race settlement all agree.
+export function berlinToday(now: Date = new Date()): string {
+  return berlinDayStart(now).date;
+}
+
 // Award a single day's points from per-user practiced-word counts.
 // Rules: only users with count >= 1 are ranked (count desc). Ties split the tiers
 // they occupy evenly — e.g. {a:10,b:10,c:5} -> a,b get (5+4)/2=4.5, c gets 3.

@@ -10,6 +10,7 @@ import {
   RaceResponse,
 } from './types';
 import { PROFILE_STORAGE_KEY } from './profiles';
+import { berlinToday } from './race';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,17 @@ const defaultStats: ProgressStats = {
   streak: 0,
   lastActivity: '',
   exercisesByType: {},
+  daily: {},
 };
+
+// Keep the per-day counter from growing without bound.
+const KEEP_DAILY_DAYS = 60;
+function pruneDaily(daily: Record<string, number>): Record<string, number> {
+  const cutoff = new Date(Date.now() - KEEP_DAILY_DAYS * 86400000).toISOString().slice(0, 10);
+  const out: Record<string, number> = {};
+  for (const [d, n] of Object.entries(daily)) if (d >= cutoff) out[d] = n;
+  return out;
+}
 
 export async function getStats(): Promise<ProgressStats> {
   const data = await getJson<ProgressStats | null>('/api/data/stats', null);
@@ -107,6 +118,11 @@ export async function recordExercise(
   const lastDay = stats.lastActivity ? new Date(stats.lastActivity).toDateString() : '';
   const yesterday = new Date(Date.now() - 86400000).toDateString();
 
+  // Per-day flashcard tally: every vocabulary flashcard counts, including repeats.
+  const dayKey = berlinToday();
+  const daily = pruneDaily({ ...(stats.daily ?? {}) });
+  if (type === 'vocabulary') daily[dayKey] = (daily[dayKey] ?? 0) + 1;
+
   const newStats: ProgressStats = {
     ...stats,
     exercisesCompleted: stats.exercisesCompleted + 1,
@@ -119,6 +135,7 @@ export async function recordExercise(
       ...stats.exercisesByType,
       [type]: (stats.exercisesByType[type] ?? 0) + 1,
     },
+    daily,
   };
 
   await putJson('/api/data/stats', newStats);
