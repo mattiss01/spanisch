@@ -118,10 +118,13 @@ export async function recordExercise(
   const lastDay = stats.lastActivity ? new Date(stats.lastActivity).toDateString() : '';
   const yesterday = new Date(Date.now() - 86400000).toDateString();
 
-  // Per-day flashcard tally: every vocabulary flashcard counts, including repeats.
+  // Per-day activity tally: every vocabulary flashcard (+1) and every conjugated
+  // form (+total) counts, including repeats. Drives the daily goal and the race.
   const dayKey = berlinToday();
   const daily = pruneDaily({ ...(stats.daily ?? {}) });
-  if (type === 'vocabulary') daily[dayKey] = (daily[dayKey] ?? 0) + 1;
+  if (type === 'vocabulary' || type === 'conjugation') {
+    daily[dayKey] = (daily[dayKey] ?? 0) + total;
+  }
 
   const newStats: ProgressStats = {
     ...stats,

@@ -73,7 +73,7 @@ export default function RacePage() {
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">
             First to {goal} points wins. Most learning each day scores 5 · 4 · 3 · 2 · 1.
-            A conjugated verb counts as 5 words.
+            Every flashcard and every conjugated form counts.
           </p>
         </div>
 
