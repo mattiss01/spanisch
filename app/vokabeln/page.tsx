@@ -103,8 +103,14 @@ function germanFold(s: string): string {
 
 // A translation may list several acceptable answers separated by "/",
 // e.g. "leben / wohnen" or "el novio / la novia". Any one of them counts.
+// Parentheticals are dropped first so a "/" inside them — e.g.
+// "sein (Zustand/Ort)" — isn't mistaken for a variant separator.
 function splitVariants(s: string): string[] {
-  return s.split('/').map(v => v.trim()).filter(Boolean);
+  return s
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .split('/')
+    .map(v => v.trim())
+    .filter(Boolean);
 }
 
 function checkAnswer(user: string, correct: string): { correct: boolean; accentHint?: string } {
