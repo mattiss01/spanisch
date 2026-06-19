@@ -86,6 +86,16 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// Fisher–Yates shuffle (returns a new array) — used to randomize review order.
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // German keyboard substitutes: ä→ae, ö→oe, ü→ue, ß→ss (and accept the reverse).
 function germanFold(s: string): string {
   return s
@@ -278,7 +288,8 @@ export default function VokabelnPage() {
 
   function startWiederholen() {
     if (!vocabLoaded || dueToday.length === 0) return;
-    setItems(dueToday.map(v => makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))));
+    // Show due words in random order rather than fixed DB order.
+    setItems(shuffle(dueToday).map(v => makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))));
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
