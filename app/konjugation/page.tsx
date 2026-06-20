@@ -11,8 +11,7 @@ import { useProfile } from '@/lib/use-profile';
 import { isBeginner } from '@/lib/profiles';
 
 type Tab = 'lernen' | 'all' | 'mistakes';
-type VerbSort = 'alpha' | 'accuracy' | 'recent';
-type PracticeFilter = 'all' | 'once' | 'few' | 'many';
+type VerbSort = 'alpha' | 'accuracy' | 'recent' | 'practiced';
 
 // Score of the most recent attempt only (not lifetime cumulative). Each section
 // stores the last attempt's questions (`pronouns`) and mistakes (`recentMistakes`),
@@ -71,7 +70,6 @@ export default function KonjugationPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [verbSort, setVerbSort] = useState<VerbSort>('recent');
   const [verbSortDir, setVerbSortDir] = useState<'asc' | 'desc'>('desc');
-  const [practiceFilter, setPracticeFilter] = useState<PracticeFilter>('all');
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -94,22 +92,14 @@ export default function KonjugationPage() {
   const withMistakes = records.filter(r =>
     r.sections.some(s => s.recentMistakes.length > 0)
   );
-  const matchesPractice = (n: number) =>
-    practiceFilter === 'all' ? true
-    : practiceFilter === 'once' ? n <= 1
-    : practiceFilter === 'few' ? n >= 2 && n <= 4
-    : n >= 5; // 'many'
-
-  const baseList = tab === 'mistakes' ? withMistakes : records;
-  const displayed = baseList
-    .filter(r => matchesPractice(r.totalAttempts))
-    .sort((a, b) => {
-      let cmp: number;
-      if (verbSort === 'alpha') cmp = a.verb.localeCompare(b.verb);
-      else if (verbSort === 'accuracy') cmp = accuracyOf(a) - accuracyOf(b);
-      else cmp = new Date(a.lastAttempted).getTime() - new Date(b.lastAttempted).getTime();
-      return verbSortDir === 'asc' ? cmp : -cmp;
-    });
+  const displayed = [...(tab === 'mistakes' ? withMistakes : records)].sort((a, b) => {
+    let cmp: number;
+    if (verbSort === 'alpha') cmp = a.verb.localeCompare(b.verb);
+    else if (verbSort === 'accuracy') cmp = accuracyOf(a) - accuracyOf(b);
+    else if (verbSort === 'practiced') cmp = a.totalAttempts - b.totalAttempts;
+    else cmp = new Date(a.lastAttempted).getTime() - new Date(b.lastAttempted).getTime();
+    return verbSortDir === 'asc' ? cmp : -cmp;
+  });
   const mastered = records.filter(r => r.mastered).length;
 
   const learnedVerbs = new Set(records.map(r => r.verb.toLowerCase()));
@@ -286,8 +276,8 @@ export default function KonjugationPage() {
           </div>
         )}
 
-        {/* Empty state: nothing practiced at all (no filter could help) */}
-        {tab !== 'lernen' && baseList.length === 0 && (
+        {/* Empty states for other tabs */}
+        {tab !== 'lernen' && displayed.length === 0 && (
           <div className="text-center py-14">
             <p className="text-4xl mb-3">{tab === 'mistakes' ? '🎉' : '🔤'}</p>
             <p className="text-sm text-gray-500 font-medium">
@@ -296,52 +286,13 @@ export default function KonjugationPage() {
           </div>
         )}
 
-        {/* Practice-frequency filter */}
-        {tab !== 'lernen' && baseList.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-xs text-gray-400 mr-1">Practiced</span>
-            {([
-              ['all', 'All'],
-              ['once', '1×'],
-              ['few', '2–4×'],
-              ['many', '5+×'],
-            ] as [PracticeFilter, string][]).map(([id, label]) => {
-              const count = id === 'all'
-                ? baseList.length
-                : baseList.filter(r => (
-                    id === 'once' ? r.totalAttempts <= 1
-                    : id === 'few' ? r.totalAttempts >= 2 && r.totalAttempts <= 4
-                    : r.totalAttempts >= 5
-                  )).length;
-              const active = practiceFilter === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setPracticeFilter(id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                    active ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                >
-                  {label} <span className="tabular-nums opacity-70">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Filtered-to-empty state */}
-        {tab !== 'lernen' && baseList.length > 0 && displayed.length === 0 && (
-          <div className="text-center py-10">
-            <p className="text-sm text-gray-400">No verbs match this filter.</p>
-          </div>
-        )}
-
         {/* Sort controls */}
         {tab !== 'lernen' && displayed.length > 0 && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-1 flex-wrap">
             {([
               ['alpha', 'A–Z'],
               ['accuracy', 'Accuracy'],
+              ['practiced', 'Practiced'],
               ['recent', 'Recent'],
             ] as [VerbSort, string][]).map(([id, label]) => {
               const active = verbSort === id;
