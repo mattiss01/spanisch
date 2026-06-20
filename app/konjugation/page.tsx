@@ -68,8 +68,27 @@ export default function KonjugationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [verbSort, setVerbSort] = useState<VerbSort>('recent');
-  const [verbSortDir, setVerbSortDir] = useState<'asc' | 'desc'>('desc');
+  // Ordered list of active sort keys; each is a tie-breaker for the previous one.
+  const [sorts, setSorts] = useState<{ key: VerbSort; dir: 'asc' | 'desc' }[]>([
+    { key: 'recent', dir: 'desc' },
+  ]);
+
+  // Click cycles a key: off → natural dir → opposite dir → off. Newly activated
+  // keys append as the lowest-priority tie-breaker.
+  const naturalDir = (key: VerbSort): 'asc' | 'desc' => (key === 'alpha' ? 'asc' : 'desc');
+  function cycleSort(key: VerbSort) {
+    setSorts(prev => {
+      const i = prev.findIndex(s => s.key === key);
+      if (i < 0) return [...prev, { key, dir: naturalDir(key) }];
+      const cur = prev[i];
+      if (cur.dir === naturalDir(key)) {
+        const next = [...prev];
+        next[i] = { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
+        return next;
+      }
+      return prev.filter(s => s.key !== key); // already flipped → remove
+    });
+  }
 
   useEffect(() => {
     if (ready && !profile) router.push('/profile');
@@ -92,13 +111,18 @@ export default function KonjugationPage() {
   const withMistakes = records.filter(r =>
     r.sections.some(s => s.recentMistakes.length > 0)
   );
+  const cmpBy = (key: VerbSort, a: ConjugationRecord, b: ConjugationRecord): number => {
+    if (key === 'alpha') return a.verb.localeCompare(b.verb);
+    if (key === 'accuracy') return accuracyOf(a) - accuracyOf(b);
+    if (key === 'practiced') return a.totalAttempts - b.totalAttempts;
+    return new Date(a.lastAttempted).getTime() - new Date(b.lastAttempted).getTime();
+  };
   const displayed = [...(tab === 'mistakes' ? withMistakes : records)].sort((a, b) => {
-    let cmp: number;
-    if (verbSort === 'alpha') cmp = a.verb.localeCompare(b.verb);
-    else if (verbSort === 'accuracy') cmp = accuracyOf(a) - accuracyOf(b);
-    else if (verbSort === 'practiced') cmp = a.totalAttempts - b.totalAttempts;
-    else cmp = new Date(a.lastAttempted).getTime() - new Date(b.lastAttempted).getTime();
-    return verbSortDir === 'asc' ? cmp : -cmp;
+    for (const { key, dir } of sorts) {
+      const cmp = cmpBy(key, a, b);
+      if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+    }
+    return 0;
   });
   const mastered = records.filter(r => r.mastered).length;
 
@@ -295,19 +319,23 @@ export default function KonjugationPage() {
               ['practiced', 'Practiced'],
               ['recent', 'Recent'],
             ] as [VerbSort, string][]).map(([id, label]) => {
-              const active = verbSort === id;
+              const idx = sorts.findIndex(s => s.key === id);
+              const active = idx >= 0;
+              const dir = active ? sorts[idx].dir : null;
               return (
                 <button
                   key={id}
-                  onClick={() => {
-                    if (active) setVerbSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-                    else { setVerbSort(id); setVerbSortDir(id === 'alpha' ? 'asc' : 'desc'); }
-                  }}
+                  onClick={() => cycleSort(id)}
+                  title="Tap to add/flip/remove. Multiple can combine."
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                     active ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                   }`}
                 >
-                  {label}{active ? (verbSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                  {/* priority number only shown when more than one sort is active */}
+                  {active && sorts.length > 1 && (
+                    <span className="tabular-nums opacity-70 mr-1">{idx + 1}</span>
+                  )}
+                  {label}{dir ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
                 </button>
               );
             })}
