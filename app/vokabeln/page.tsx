@@ -17,7 +17,7 @@ const ROUND_SIZE = 20;
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
-type Confidence = 'sicher' | 'unsicher' | 'bekannt';
+type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
 type WordSort = 'alpha' | 'phase' | 'review';
 
 interface SessionItem {
@@ -55,6 +55,7 @@ function isDue(nextReview?: string): boolean {
 }
 
 function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidence): number {
+  if (conf === 'again') return 1;                            // restart from phase 1
   if (!correct) return Math.max(1, currentLevel - 1); // wrong: drop a phase
   if (conf === 'bekannt') return 5;                          // Easy: mark known
   if (conf === 'unsicher') return Math.max(1, currentLevel); // Hard: stay in phase
@@ -62,9 +63,9 @@ function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidenc
 }
 
 function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
+  // "Again" (restart) or wrong: due now → shows in Review today.
+  if (conf === 'again' || !correct) return new Date().toISOString();
   if (newLevel >= 5) return '';
-  // "Again" (didn't know it): due now → shows in Review today.
-  if (!correct) return new Date().toISOString();
   // "Hard" / "Keep phase": review tomorrow.
   if (conf === 'unsicher') {
     const d = new Date();
@@ -902,14 +903,22 @@ function Flashcard({
 
           {/* Rating */}
           {correct ? (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
+              <button
+                onClick={() => rate(true, 'again')}
+                disabled={saving}
+                className="py-2.5 rounded-xl text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors"
+              >
+                Again
+                <span className="block text-[10px] font-normal opacity-70">restart · today</span>
+              </button>
               <button
                 onClick={() => rate(true, 'unsicher')}
                 disabled={saving}
                 className="py-2.5 rounded-xl text-sm font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 transition-colors"
               >
-                Hard
-                <span className="block text-[10px] font-normal opacity-70">stay · tomorrow</span>
+                Stay
+                <span className="block text-[10px] font-normal opacity-70">keep phase</span>
               </button>
               <button
                 onClick={() => rate(true, 'sicher')}
@@ -924,7 +933,7 @@ function Flashcard({
                 disabled={saving}
                 className="py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 transition-colors"
               >
-                Easy
+                Known
                 <span className="block text-[10px] font-normal opacity-80">mark known</span>
               </button>
             </div>
