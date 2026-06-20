@@ -34,6 +34,16 @@ interface SessionItem {
 
 const LEVEL_INTERVALS = [0, 1, 3, 7, 14];
 
+const LEVEL_LABELS = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Known'];
+const LEVEL_COLORS = [
+  '',
+  'bg-red-100 text-red-700',
+  'bg-orange-100 text-orange-700',
+  'bg-amber-100 text-amber-700',
+  'bg-blue-100 text-blue-700',
+  'bg-green-100 text-green-700',
+];
+
 function getLevel(v: VocabEntry): number {
   if (v.level !== undefined) return v.level;
   return v.status === 'bekannt' ? 5 : 1;
@@ -716,15 +726,6 @@ export default function VokabelnPage() {
                 <div className="space-y-2">
                   {wordsFiltered.map(entry => {
                     const level = getLevel(entry);
-                    const levelLabels = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Known'];
-                    const levelColors = [
-                      '',
-                      'bg-red-100 text-red-700',
-                      'bg-orange-100 text-orange-700',
-                      'bg-amber-100 text-amber-700',
-                      'bg-blue-100 text-blue-700',
-                      'bg-green-100 text-green-700',
-                    ];
                     const reviewDate = entry.nextReview
                       ? new Date(entry.nextReview).toLocaleDateString()
                       : null;
@@ -738,8 +739,8 @@ export default function VokabelnPage() {
                             <p className="font-semibold text-gray-900 text-sm">
                               {direction === 'es_to_de' ? entry.translation : entry.word}
                             </p>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${levelColors[level]}`}>
-                              {levelLabels[level]}
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${LEVEL_COLORS[level]}`}>
+                              {LEVEL_LABELS[level]}
                             </span>
                           </div>
                           <p className="text-gray-500 text-sm">
@@ -834,7 +835,12 @@ function Flashcard({
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
       {/* Progress header */}
       <div className="flex items-center justify-between text-xs text-gray-400">
-        <span className="tabular-nums">{position} / {total}</span>
+        <div className="flex items-center gap-2">
+          <span className="tabular-nums">{position} / {total}</span>
+          <span className={`px-1.5 py-0.5 rounded-md font-medium ${LEVEL_COLORS[item.currentLevel]}`}>
+            {LEVEL_LABELS[item.currentLevel]}
+          </span>
+        </div>
         <button onClick={onFinish} className="hover:text-gray-600 transition-colors">
           Finish
         </button>
