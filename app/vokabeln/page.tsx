@@ -467,7 +467,7 @@ export default function VokabelnPage() {
         if (day < today) day = today; // overdue folds into "Due now"
         key = `due:${day}`;
         sortKey = day;
-        label = day === today ? 'Due now'
+        label = day === today ? 'Due today'
           : day === tomorrow ? 'Tomorrow'
           : new Date(day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
       }
