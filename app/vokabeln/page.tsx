@@ -19,6 +19,7 @@ type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
 type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
 type WordSort = 'alpha' | 'phase' | 'review';
+type WordGroup = 'none' | 'phase' | 'due';
 
 interface SessionItem {
   de: string;
@@ -163,6 +164,10 @@ export default function VokabelnPage() {
   const [wordSearch, setWordSearch] = useState('');
   const [wordSort, setWordSort] = useState<WordSort>('alpha');
   const [wordSortDir, setWordSortDir] = useState<'asc' | 'desc'>('asc');
+  const [wordGroup, setWordGroup] = useState<WordGroup>('none');
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(
+    new Set(['phase:5', 'due:none']), // Known / no-review collapsed by default
+  );
 
   // Flashcard session state (one word at a time)
   const [phase, setPhase] = useState<Phase>('idle');
@@ -434,6 +439,107 @@ export default function VokabelnPage() {
       }
       return wordSortDir === 'asc' ? cmp : -cmp;
     });
+
+  // Optional grouping of the (already filtered+sorted) words into collapsible
+  // sections. `wordsFiltered` order is preserved within each section.
+  const today = berlinToday();
+  const tomorrow = berlinToday(new Date(Date.now() + 86400000));
+
+  type WordSection = { key: string; label: string; badgeClass: string; entries: VocabEntry[] };
+  let wordSections: WordSection[] = [];
+  if (wordGroup === 'phase') {
+    wordSections = [1, 2, 3, 4, 5]
+      .map(level => ({
+        key: `phase:${level}`,
+        label: LEVEL_LABELS[level],
+        badgeClass: LEVEL_COLORS[level],
+        entries: wordsFiltered.filter(w => getLevel(w) === level),
+      }))
+      .filter(s => s.entries.length > 0);
+  } else if (wordGroup === 'due') {
+    const buckets = new Map<string, { sortKey: string; label: string; entries: VocabEntry[] }>();
+    for (const w of wordsFiltered) {
+      let key: string, sortKey: string, label: string;
+      if (getLevel(w) >= 5 || !w.nextReview) {
+        key = 'due:none'; sortKey = '￿'; label = 'No review';
+      } else {
+        let day = berlinToday(new Date(w.nextReview));
+        if (day < today) day = today; // overdue folds into "Due now"
+        key = `due:${day}`;
+        sortKey = day;
+        label = day === today ? 'Due now'
+          : day === tomorrow ? 'Tomorrow'
+          : new Date(day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+      const b = buckets.get(key) ?? { sortKey, label, entries: [] };
+      b.entries.push(w);
+      buckets.set(key, b);
+    }
+    wordSections = [...buckets.entries()]
+      .sort((a, b) => a[1].sortKey.localeCompare(b[1].sortKey))
+      .map(([key, b]) => ({ key, label: b.label, badgeClass: 'bg-gray-100 text-gray-600', entries: b.entries }));
+  }
+
+  function toggleCollapsed(key: string) {
+    setCollapsedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  function renderCard(entry: VocabEntry) {
+    const level = getLevel(entry);
+    const reviewDate = entry.nextReview
+      ? new Date(entry.nextReview).toLocaleDateString()
+      : null;
+    return (
+      <div
+        key={entry.id}
+        className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-start gap-3"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-gray-900 text-sm">
+              {direction === 'es_to_de' ? entry.translation : entry.word}
+            </p>
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${LEVEL_COLORS[level]}`}>
+              {LEVEL_LABELS[level]}
+            </span>
+          </div>
+          <p className="text-gray-500 text-sm">
+            {direction === 'es_to_de' ? entry.word : entry.translation}
+          </p>
+          {level < 5 && reviewDate && (
+            <p className="text-gray-400 text-xs mt-0.5">
+              Next review: {reviewDate}
+            </p>
+          )}
+          {entry.example && (
+            <p className="text-gray-400 text-xs mt-0.5 italic">&bdquo;{entry.example}&ldquo;</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 shrink-0">
+          <button
+            onClick={() => setWordLevel(entry, level + 1)}
+            disabled={level >= 5}
+            title="Move up a phase"
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
+          >
+            ▲
+          </button>
+          <button
+            onClick={() => setWordLevel(entry, level - 1)}
+            disabled={level <= 1}
+            title="Move down a phase"
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
+          >
+            ▼
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const addWordSection = (
     !showAddForm ? (
@@ -724,60 +830,56 @@ export default function VokabelnPage() {
                     })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {wordsFiltered.map(entry => {
-                    const level = getLevel(entry);
-                    const reviewDate = entry.nextReview
-                      ? new Date(entry.nextReview).toLocaleDateString()
-                      : null;
-                    return (
-                      <div
-                        key={entry.id}
-                        className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-start gap-3"
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 shrink-0">Group</span>
+                  <div className="flex gap-1">
+                    {([
+                      ['none', 'None'],
+                      ['phase', 'Phase'],
+                      ['due', 'Due day'],
+                    ] as [WordGroup, string][]).map(([id, label]) => (
+                      <button
+                        key={id}
+                        onClick={() => setWordGroup(id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                          wordGroup === id
+                            ? 'bg-red-700 text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-900 text-sm">
-                              {direction === 'es_to_de' ? entry.translation : entry.word}
-                            </p>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${LEVEL_COLORS[level]}`}>
-                              {LEVEL_LABELS[level]}
-                            </span>
-                          </div>
-                          <p className="text-gray-500 text-sm">
-                            {direction === 'es_to_de' ? entry.word : entry.translation}
-                          </p>
-                          {level < 5 && reviewDate && (
-                            <p className="text-gray-400 text-xs mt-0.5">
-                              Next review: {reviewDate}
-                            </p>
-                          )}
-                          {entry.example && (
-                            <p className="text-gray-400 text-xs mt-0.5 italic">&bdquo;{entry.example}&ldquo;</p>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <button
-                            onClick={() => setWordLevel(entry, level + 1)}
-                            disabled={level >= 5}
-                            title="Move up a phase"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => setWordLevel(entry, level - 1)}
-                            disabled={level <= 1}
-                            title="Move down a phase"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
-                          >
-                            ▼
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {wordGroup === 'none' ? (
+                  <div className="space-y-2">
+                    {wordsFiltered.map(renderCard)}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {wordSections.map(section => {
+                      const expanded = wordSearch.trim() !== '' || !collapsedKeys.has(section.key);
+                      return (
+                        <div key={section.key} className="space-y-2">
+                          <button
+                            onClick={() => toggleCollapsed(section.key)}
+                            className="w-full flex items-center gap-2 px-1 py-1 text-left"
+                          >
+                            <span className="text-gray-400 text-xs w-3">{expanded ? '▾' : '▸'}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${section.badgeClass}`}>
+                              {section.label}
+                            </span>
+                            <span className="text-xs text-gray-400 tabular-nums">{section.entries.length}</span>
+                          </button>
+                          {expanded && (
+                            <div className="space-y-2">{section.entries.map(renderCard)}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </div>

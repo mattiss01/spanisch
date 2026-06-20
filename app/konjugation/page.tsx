@@ -13,9 +13,23 @@ import { isBeginner } from '@/lib/profiles';
 type Tab = 'lernen' | 'all' | 'mistakes';
 type VerbSort = 'alpha' | 'accuracy' | 'recent';
 
+// Score of the most recent attempt only (not lifetime cumulative). Each section
+// stores the last attempt's questions (`pronouns`) and mistakes (`recentMistakes`),
+// so the last try's correct count is `pronouns.length - recentMistakes.length` —
+// consistent with how `mastered` is derived.
+function lastTry(r: ConjugationRecord): { correct: number; total: number; pct: number } {
+  let correct = 0;
+  let total = 0;
+  for (const s of r.sections) {
+    const q = s.pronouns.length;
+    total += q;
+    correct += Math.max(0, q - s.recentMistakes.length);
+  }
+  return { correct, total, pct: total > 0 ? Math.round((correct / total) * 100) : 0 };
+}
+
 function accuracyOf(r: ConjugationRecord): number {
-  const total = r.sections.reduce((s, sec) => s + sec.totalQuestions, 0);
-  const correct = r.sections.reduce((s, sec) => s + sec.totalCorrect, 0);
+  const { correct, total } = lastTry(r);
   return total > 0 ? correct / total : 0;
 }
 
@@ -31,9 +45,7 @@ function timeAgo(iso: string): string {
 }
 
 function TotalBar({ record }: { record: ConjugationRecord }) {
-  const total = record.sections.reduce((sum, s) => sum + s.totalQuestions, 0);
-  const correct = record.sections.reduce((sum, s) => sum + s.totalCorrect, 0);
-  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+  const { pct } = lastTry(record);
   const color = pct === 100 ? 'bg-green-500' : pct >= 70 ? 'bg-amber-400' : 'bg-red-400';
   return (
     <div className="flex items-center gap-2">

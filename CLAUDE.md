@@ -70,8 +70,9 @@ alter table stats add column if not exists daily jsonb not null default '{}'::js
 ## THE RACE (scoring model)
 
 Global standings everyone sees; cars race to **100 points**.
-- **Daily activity** per user = every vocab flashcard (+1) + every conjugated form (+1), repeats
-  included. Tracked in `stats.daily` (incremented in `recordExercise`), keyed by **Europe/Berlin date**.
+- **Daily activity** per user = every vocab flashcard (+1) + every conjugated form (**half credit**,
+  `round(total/2)`), repeats included. Tracked in `stats.daily` (incremented in `recordExercise`),
+  keyed by **Europe/Berlin date**.
 - Each finished day awards **5/4/3/2/1** to the top daily scorers; **ties split the tiers evenly**;
   0 activity earns nothing. Logic is pure in `lib/race.ts` (`awardPoints`, `berlinDayStart`/`berlinToday`).
 - `GET /api/race` is read-and-self-heal: it snapshots today's live count and **settles** finished days

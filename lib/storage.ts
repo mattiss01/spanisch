@@ -119,11 +119,13 @@ export async function recordExercise(
   const yesterday = new Date(Date.now() - 86400000).toDateString();
 
   // Per-day activity tally: every vocabulary flashcard (+1) and every conjugated
-  // form (+total) counts, including repeats. Drives the daily goal and the race.
+  // form (half credit) counts, including repeats. Drives the daily goal and the race.
   const dayKey = berlinToday();
   const daily = pruneDaily({ ...(stats.daily ?? {}) });
-  if (type === 'vocabulary' || type === 'conjugation') {
+  if (type === 'vocabulary') {
     daily[dayKey] = (daily[dayKey] ?? 0) + total;
+  } else if (type === 'conjugation') {
+    daily[dayKey] = (daily[dayKey] ?? 0) + Math.round(total / 2); // half credit per form
   }
 
   const newStats: ProgressStats = {
