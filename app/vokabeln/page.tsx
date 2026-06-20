@@ -18,7 +18,7 @@ const ROUND_SIZE = 20;
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
 type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
-type WordSort = 'alpha' | 'phase' | 'review';
+type WordSort = 'alpha' | 'review';
 type WordGroup = 'none' | 'phase' | 'due';
 
 interface SessionItem {
@@ -425,9 +425,7 @@ export default function VokabelnPage() {
     )
     .sort((a, b) => {
       let cmp: number;
-      if (wordSort === 'phase') {
-        cmp = getLevel(a) - getLevel(b);
-      } else if (wordSort === 'review') {
+      if (wordSort === 'review') {
         const ra = a.nextReview ? new Date(a.nextReview).getTime() : Infinity;
         const rb = b.nextReview ? new Date(b.nextReview).getTime() : Infinity;
         cmp = ra - rb;
@@ -807,7 +805,6 @@ export default function VokabelnPage() {
                   <div className="flex gap-1">
                     {([
                       ['alpha', 'A–Z'],
-                      ['phase', 'Phase'],
                       ['review', 'Next review'],
                     ] as [WordSort, string][]).map(([id, label]) => {
                       const active = wordSort === id;
