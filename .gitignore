@@ -36,6 +36,9 @@ yarn-error.log*
 # local learning data
 /data
 
+# downloaded source datasets + temp scripts for scripts/build-vocab.mjs
+/scripts/data
+
 # vercel
 .vercel
 
