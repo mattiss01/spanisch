@@ -9,6 +9,8 @@ import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
 import { isBeginner } from '@/lib/profiles';
 import { berlinToday } from '@/lib/race';
+import { PRONOUNS } from '@/lib/verb-catalog';
+import { loadExamples, VocabExample } from '@/lib/vocab-examples';
 import StreakBanner from '@/components/StreakBanner';
 
 const DAILY_GOAL = 20;
@@ -24,7 +26,9 @@ type WordGroup = 'none' | 'phase' | 'due';
 interface SessionItem {
   de: string;
   es: string;
-  example: string;
+  example: string;       // Spanish example sentence
+  exampleDe?: string;    // German translation of the example
+  conj?: string[];       // present-tense forms (verbs only)
   vocabId?: string;
   currentLevel: number;
   question: string;
@@ -181,6 +185,10 @@ export default function VokabelnPage() {
   const [vocabLoaded, setVocabLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
+  // Static example sentences + conjugations, keyed by normalized Spanish word.
+  const [examples, setExamples] = useState<Map<string, VocabExample>>(new Map());
+  useEffect(() => { loadExamples().then(setExamples); }, []);
+
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
   const [addNative, setAddNative] = useState('');
@@ -243,9 +251,16 @@ export default function VokabelnPage() {
   // If there's activity today, the streak is at least 1 even if stats lag behind.
   const displayStreak = Math.max(stats?.streak ?? 0, todayCount > 0 ? 1 : 0);
 
-  function makeItem(de: string, es: string, example: string, vocabId?: string, currentLevel = 0): SessionItem {
+  function makeItem(
+    de: string,
+    es: string,
+    example: string,
+    vocabId?: string,
+    currentLevel = 0,
+    extra?: { de?: string; conj?: string[] },
+  ): SessionItem {
     return {
-      de, es, example, vocabId, currentLevel,
+      de, es, example, exampleDe: extra?.de, conj: extra?.conj, vocabId, currentLevel,
       question: direction === 'es_to_de' ? es : de,
       answer:   direction === 'es_to_de' ? de : es,
     };
@@ -299,7 +314,10 @@ export default function VokabelnPage() {
     const unseen = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).slice(0, ROUND_SIZE);
     if (unseen.length === 0) return;
     // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
-    setItems(unseen.map(e => makeItem(e.de, e.es, '', undefined, 1)));
+    setItems(unseen.map(e => {
+      const ex = examples.get(norm(e.es));
+      return makeItem(e.de, e.es, ex?.es ?? '', undefined, 1, { de: ex?.de, conj: ex?.conj });
+    }));
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
@@ -309,7 +327,13 @@ export default function VokabelnPage() {
   function startWiederholen() {
     if (!vocabLoaded || dueToday.length === 0) return;
     // Show due words in random order rather than fixed DB order.
-    setItems(shuffle(dueToday).map(v => makeItem(v.translation, v.word, v.example ?? '', v.id, getLevel(v))));
+    setItems(shuffle(dueToday).map(v => {
+      const ex = examples.get(norm(v.word));
+      return makeItem(v.translation, v.word, ex?.es ?? v.example ?? '', v.id, getLevel(v), {
+        de: ex?.de,
+        conj: ex?.conj,
+      });
+    }));
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
@@ -999,6 +1023,35 @@ function Flashcard({
               </p>
             )}
           </div>
+
+          {/* Example sentence + (for verbs) present-tense conjugations */}
+          {(item.example || item.conj) && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              {item.example && (
+                <div>
+                  <p className="text-sm text-gray-800">{item.example}</p>
+                  {item.exampleDe && (
+                    <p className="text-xs text-gray-400 italic mt-0.5">{item.exampleDe}</p>
+                  )}
+                </div>
+              )}
+              {item.conj && item.conj.length === PRONOUNS.length && (
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    Presente
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                    {PRONOUNS.map((p, i) => (
+                      <div key={p} className="flex justify-between gap-2 text-sm">
+                        <span className="text-gray-400">{p}</span>
+                        <span className="font-medium text-gray-800 tabular-nums">{item.conj![i]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Rating */}
           {correct ? (
