@@ -316,7 +316,7 @@ export default function VokabelnPage() {
     // New words start at phase 1, so Hard keeps them at phase 1 and Good promotes to phase 2.
     setItems(unseen.map(e => {
       const ex = examples.get(norm(e.es));
-      return makeItem(e.de, e.es, ex?.es ?? '', undefined, 1, { de: ex?.de, conj: ex?.conj });
+      return makeItem(e.de, e.es, ex?.es || '', undefined, 1, { de: ex?.de, conj: ex?.conj });
     }));
     setCurrent(0);
     setDoneCount(0);
@@ -329,7 +329,7 @@ export default function VokabelnPage() {
     // Show due words in random order rather than fixed DB order.
     setItems(shuffle(dueToday).map(v => {
       const ex = examples.get(norm(v.word));
-      return makeItem(v.translation, v.word, ex?.es ?? v.example ?? '', v.id, getLevel(v), {
+      return makeItem(v.translation, v.word, ex?.es || v.example || '', v.id, getLevel(v), {
         de: ex?.de,
         conj: ex?.conj,
       });
