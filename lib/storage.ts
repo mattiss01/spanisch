@@ -93,8 +93,9 @@ const defaultStats: ProgressStats = {
   daily: {},
 };
 
-// Keep the per-day counter from growing without bound.
-const KEEP_DAILY_DAYS = 60;
+// Keep the per-day counter from growing without bound. ~1 year so the race's
+// "Progress over time" chart can show long-term cumulative history.
+const KEEP_DAILY_DAYS = 365;
 function pruneDaily(daily: Record<string, number>): Record<string, number> {
   const cutoff = new Date(Date.now() - KEEP_DAILY_DAYS * 86400000).toISOString().slice(0, 10);
   const out: Record<string, number> = {};
@@ -323,7 +324,14 @@ export async function addGeneratedTopic(topic: ArticleTopic): Promise<void> {
 
 // ─── the race (global standings) ───────────────────────────────────────────────
 
-const emptyRace: RaceResponse = { goal: 100, today: '', racers: [], winnerId: null, highscores: [] };
+const emptyRace: RaceResponse = {
+  goal: 100,
+  today: '',
+  racers: [],
+  winnerId: null,
+  highscores: [],
+  history: { dates: [], series: [] },
+};
 
 // Global leaderboard — no user header needed. Tolerant read for display only.
 export async function getRace(): Promise<RaceResponse> {

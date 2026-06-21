@@ -165,6 +165,18 @@ export async function getDailyActionCounts(date: string): Promise<Record<string,
   return counts;
 }
 
+// Every user's full per-day activity map (Berlin 'YYYY-MM-DD' -> count), for the
+// race's cumulative "Progress over time" chart. Same metric as getDailyActionCounts.
+export async function getAllDailyMaps(): Promise<Record<string, Record<string, number>>> {
+  const { data, error } = await db().from('stats').select('user_id, daily');
+  if (error) throw new Error(error.message);
+  const out: Record<string, Record<string, number>> = {};
+  for (const row of (data as { user_id: string; daily: Record<string, number> | null }[]) ?? []) {
+    out[row.user_id] = row.daily ?? {};
+  }
+  return out;
+}
+
 // ─── conjugation (one jsonb row) ─────────────────────────────────────────────────
 
 export async function getConjugation(userId: string): Promise<ConjugationRecord[]> {

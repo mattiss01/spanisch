@@ -277,10 +277,19 @@ export interface RaceRacer {
   todayPoints: number;  // points they'd earn if the day ended now
 }
 
+// Cumulative daily-activity history for the "Progress over time" chart. `dates`
+// is a continuous Berlin-date range (asc); each series' `cumulative` is aligned
+// to it (running sum of that user's daily counts up to and including each date).
+export interface RaceHistory {
+  dates: string[];
+  series: { id: string; name: string; cumulative: number[] }[];
+}
+
 export interface RaceResponse {
   goal: number;
   today: string;
   racers: RaceRacer[];  // sorted by points desc
   winnerId: string | null;
   highscores: { date: string; name: string; count: number }[]; // top single-day scores, desc
+  history: RaceHistory;
 }

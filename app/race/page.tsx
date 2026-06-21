@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getRace } from '@/lib/storage';
-import { RaceResponse } from '@/lib/types';
+import { RaceResponse, RaceHistory } from '@/lib/types';
 
 const REFRESH_MS = 20000;
 
@@ -15,6 +15,9 @@ const TRACK_TINTS = [
   'bg-amber-50',
   'bg-purple-50',
 ];
+// SVG stroke colors for the progress chart, in the same order as the cars above
+// (tailwind -500 shades) so each line matches that racer's car.
+const LINE_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7'];
 
 function fmtPoints(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
@@ -25,6 +28,123 @@ function fmtDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// Hand-rolled cumulative line chart (no chart lib — matches the app's UI style).
+function ProgressOverTime({
+  history,
+  colorOf,
+}: {
+  history: RaceHistory;
+  colorOf: (id: string) => string;
+}) {
+  const { dates, series } = history;
+  const empty = series.length === 0 || dates.length === 0;
+
+  // viewBox geometry; the SVG scales to its container width.
+  const W = 320,
+    H = 170,
+    PL = 30,
+    PR = 12,
+    PT = 12,
+    PB = 22;
+  const n = dates.length;
+  const yMax = Math.max(1, ...series.map(s => s.cumulative[s.cumulative.length - 1] ?? 0));
+  const x = (i: number) => (n <= 1 ? PL : PL + (i / (n - 1)) * (W - PL - PR));
+  const y = (v: number) => H - PB - (v / yMax) * (H - PT - PB);
+
+  // x tick labels: first, middle, last.
+  const tickIdx = n <= 1 ? [0] : [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 className="font-bold text-gray-900 text-base flex items-center gap-2">
+        <span>📈</span> Progress over time
+      </h2>
+
+      {empty ? (
+        <p className="text-sm text-gray-400 py-3 text-center">
+          No activity yet — start learning to grow your line! 🚀
+        </p>
+      ) : (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Cumulative learning over time">
+            {/* y baseline + top gridline with labels */}
+            {[0, yMax].map((v, k) => (
+              <g key={k}>
+                <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="#f1f5f9" strokeWidth={1} />
+                <text x={PL - 4} y={y(v) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">
+                  {Math.round(v)}
+                </text>
+              </g>
+            ))}
+
+            {/* one line per racer */}
+            {series.map(s => {
+              const color = colorOf(s.id);
+              const last = s.cumulative.length - 1;
+              if (n === 1) {
+                return <circle key={s.id} cx={x(0)} cy={y(s.cumulative[0])} r={3} fill={color} />;
+              }
+              const pts = s.cumulative.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+              return (
+                <g key={s.id}>
+                  <polyline
+                    points={pts}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  <circle cx={x(last)} cy={y(s.cumulative[last])} r={2.5} fill={color} />
+                </g>
+              );
+            })}
+
+            {/* x tick labels */}
+            {tickIdx.map(i => (
+              <text
+                key={i}
+                x={x(i)}
+                y={H - 6}
+                textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                fontSize={8}
+                fill="#94a3b8"
+              >
+                {fmtDate(dates[i])}
+              </text>
+            ))}
+          </svg>
+
+          {/* legend: colored swatch + name + current total */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {[...series]
+              .sort(
+                (a, b) =>
+                  (b.cumulative[b.cumulative.length - 1] ?? 0) -
+                  (a.cumulative[a.cumulative.length - 1] ?? 0)
+              )
+              .map(s => (
+                <span key={s.id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <span
+                    className="inline-block w-3 h-0.5 rounded-full"
+                    style={{ backgroundColor: colorOf(s.id) }}
+                  />
+                  <span className="font-medium text-gray-800">{s.name}</span>
+                  <span className="tabular-nums text-gray-500">
+                    {s.cumulative[s.cumulative.length - 1] ?? 0}
+                  </span>
+                </span>
+              ))}
+          </div>
+          <p className="text-[11px] text-gray-400 pt-1">
+            Total flashcards &amp; conjugations practiced, added up day by day.
+          </p>
+        </>
+      )}
+    </section>
+  );
 }
 
 export default function RacePage() {
@@ -56,8 +176,12 @@ export default function RacePage() {
     );
   }
 
-  const { goal, racers, winnerId, highscores } = race;
+  const { goal, racers, winnerId, highscores, history } = race;
   const winner = racers.find(r => r.id === winnerId);
+  // Map each racer id to its car color index (standings order) so chart lines match.
+  const colorIndex = new Map(racers.map((r, i) => [r.id, i]));
+  const colorOf = (id: string) =>
+    LINE_COLORS[(colorIndex.get(id) ?? 0) % LINE_COLORS.length];
   // "Today so far" ordered by today's count (most active first), only those active.
   const todayActive = [...racers]
     .filter(r => r.todayCount > 0)
@@ -133,6 +257,9 @@ export default function RacePage() {
             })}
           </div>
         </section>
+
+        {/* ===== Progress over time (cumulative) ===== */}
+        <ProgressOverTime history={history} colorOf={colorOf} />
 
         {/* ===== Today so far (live) ===== */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">

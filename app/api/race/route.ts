@@ -4,10 +4,11 @@ import {
   getRaceState,
   setRaceState,
   getDailyActionCounts,
+  getAllDailyMaps,
 } from '@/lib/db';
 import { berlinDayStart, awardPoints } from '@/lib/race';
 import { PROFILES } from '@/lib/profiles';
-import { RaceResponse, RaceHighscore } from '@/lib/types';
+import { RaceResponse, RaceHighscore, RaceHistory } from '@/lib/types';
 
 const GOAL = 100;
 // Keep ~30 days of settled snapshots so the global row can't grow without bound.
@@ -20,12 +21,49 @@ export async function GET() {
   const { date: today } = berlinDayStart();
 
   const nameOf = (id: string) => PROFILES.find(p => p.id === id)?.name ?? id;
+  const EMPTY_HISTORY: RaceHistory = { dates: [], series: [] };
+
+  // Cumulative daily-activity per profile over a continuous date range, for the
+  // "Progress over time" chart. `today` snapshot is merged in so the curve is live.
+  function buildHistory(
+    dailyMaps: Record<string, Record<string, number>>,
+    live: Record<string, number>
+  ): RaceHistory {
+    // Per-profile daily maps, with today's live count overlaid.
+    const maps: Record<string, Record<string, number>> = {};
+    let minDate: string | null = null;
+    for (const p of PROFILES) {
+      const m = { ...(dailyMaps[p.id] ?? {}) };
+      if (live[p.id]) m[today] = live[p.id];
+      maps[p.id] = m;
+      for (const d of Object.keys(m)) if (!minDate || d < minDate) minDate = d;
+    }
+    if (!minDate) return EMPTY_HISTORY;
+
+    // Continuous Berlin-date range minDate…today (step one calendar day via UTC).
+    const dates: string[] = [];
+    for (let t = Date.parse(`${minDate}T00:00:00Z`); ; t += 86400000) {
+      const d = new Date(t).toISOString().slice(0, 10);
+      dates.push(d);
+      if (d >= today) break;
+    }
+
+    const series = PROFILES.map(p => {
+      const m = maps[p.id];
+      let run = 0;
+      const cumulative = dates.map(d => (run += m[d] ?? 0));
+      return { id: p.id, name: p.name, cumulative };
+    }).filter(s => s.cumulative[s.cumulative.length - 1] > 0); // only racers with activity
+
+    return series.length ? { dates, series } : EMPTY_HISTORY;
+  }
 
   // Build the response from a points map + today's live counts + persisted records.
   function buildResponse(
     points: Record<string, number>,
     live: Record<string, number>,
-    persisted: RaceHighscore[] = []
+    persisted: RaceHighscore[] = [],
+    history: RaceHistory = EMPTY_HISTORY
   ): RaceResponse {
     const todayPoints = awardPoints(live);
     const racers = PROFILES.map(p => ({
@@ -49,7 +87,7 @@ export async function GET() {
       .map(h => ({ date: h.date, name: nameOf(h.userId), count: h.count }));
 
     const winner = racers.find(r => r.points >= GOAL);
-    return { goal: GOAL, today, racers, winnerId: winner?.id ?? null, highscores };
+    return { goal: GOAL, today, racers, winnerId: winner?.id ?? null, highscores, history };
   }
 
   // Without a database, return an empty (zeroed) board rather than erroring.
@@ -58,9 +96,10 @@ export async function GET() {
   }
 
   try {
-    const [state, actions] = await Promise.all([
+    const [state, actions, dailyMaps] = await Promise.all([
       getRaceState(),
       getDailyActionCounts(today),
+      getAllDailyMaps(),
     ]);
 
     // Daily activity per profile = every flashcard and every conjugated form done
@@ -112,7 +151,8 @@ export async function GET() {
     await setRaceState(state);
     void changed;
 
-    return NextResponse.json(buildResponse(state.points, liveTracked, state.highscores));
+    const history = buildHistory(dailyMaps, liveTracked);
+    return NextResponse.json(buildResponse(state.points, liveTracked, state.highscores, history));
   } catch {
     // Never break the page on a transient DB error — show a zeroed board.
     return NextResponse.json(buildResponse({}, {}));
