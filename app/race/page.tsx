@@ -31,6 +31,17 @@ function fmtMonth(month: string): string {
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+// Days remaining in the current month's race, today included (so the last day
+// reads "1 day left"). Uses the Berlin `month`/`today` the API returns — both are
+// plain date strings, so there are no timezone pitfalls.
+function daysLeftInMonth(month: string, today: string): number {
+  const [y, m] = month.split('-').map(Number);
+  const todayDay = Number(today.slice(8, 10));
+  if (!y || !m || !todayDay) return 0;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-based ⇒ last day of month
+  return Math.max(0, lastDay - todayDay + 1);
+}
+
 // 'YYYY-MM-DD' -> e.g. "17 Jun". Parsed as local midnight so the date doesn't shift.
 function fmtDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -184,9 +195,10 @@ export default function RacePage() {
     );
   }
 
-  const { month, racers, highscores, history } = race;
+  const { month, today, racers, highscores, history } = race;
   // Cars race relative to the current month's leader (no fixed finish line).
   const leaderPoints = Math.max(0, ...racers.map(r => r.points));
+  const daysLeft = daysLeftInMonth(month, today);
   // Map each racer id to its car color index (standings order) so chart lines match.
   const colorIndex = new Map(racers.map((r, i) => [r.id, i]));
   const colorOf = (id: string) =>
@@ -214,7 +226,14 @@ export default function RacePage() {
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-gray-900 text-base">Standings</h2>
-            <span className="text-xs font-medium text-gray-400">{fmtMonth(month)}</span>
+            <div className="text-right leading-tight">
+              <p className="text-xs font-medium text-gray-500">{fmtMonth(month)}</p>
+              {daysLeft > 0 && (
+                <p className="text-[11px] text-gray-400">
+                  ⏳ {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                </p>
+              )}
+            </div>
           </div>
           <div className="space-y-3">
             {racers.map((r, i) => {
