@@ -258,9 +258,6 @@ export default function RacePage() {
           </div>
         </section>
 
-        {/* ===== Progress over time (cumulative) ===== */}
-        <ProgressOverTime history={history} colorOf={colorOf} />
-
         {/* ===== Today so far (live) ===== */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -338,6 +335,9 @@ export default function RacePage() {
           )}
           <p className="text-[11px] text-gray-400 pt-1">Highest single-day scores ever.</p>
         </section>
+
+        {/* ===== Progress over time (cumulative) ===== */}
+        <ProgressOverTime history={history} colorOf={colorOf} />
       </div>
     </main>
   );
