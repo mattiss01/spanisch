@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useProfile } from '@/lib/use-profile';
+import { useStars } from '@/lib/use-stars';
+import { formatStars } from '@/lib/race';
 
 const nav = [
   { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
@@ -19,6 +21,8 @@ const nav = [
 export default function Navigation() {
   const path = usePathname();
   const { profile } = useProfile();
+  const stars = useStars();
+  const myStars = profile ? formatStars(stars[profile.id] ?? 0) : '';
 
   const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
   const subtitle = profile?.direction === 'es_to_de' ? 'Spanish → German' : 'German → Spanish';
@@ -38,7 +42,7 @@ export default function Navigation() {
             <span className="text-2xl">{flag}</span>
             <div>
               <p className="font-bold text-gray-900 text-sm leading-none">
-                {profile ? profile.name : 'Language Learning'}
+                {profile ? profile.name + myStars : 'Language Learning'}
               </p>
               <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
             </div>
@@ -95,7 +99,7 @@ export default function Navigation() {
           className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-400"
         >
           <span className="text-xl">👤</span>
-          {profile ? profile.name : 'Profile'}
+          {profile ? profile.name + myStars : 'Profile'}
         </Link>
       </nav>
     </>

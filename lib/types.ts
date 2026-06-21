@@ -263,18 +263,20 @@ export interface RaceHighscore {
 }
 
 export interface RaceState {
-  points: Record<string, number>;                       // cumulative per user_id (may be fractional)
   dailyCounts: Record<string, Record<string, number>>;  // 'YYYY-MM-DD' -> { user_id: count }
-  settledDates: string[];                               // days already folded into points
+  settledDates: string[];                               // days already folded into highscores
   highscores: RaceHighscore[];                          // top single-day scores, desc, max 5
+  stars: Record<string, number>;                        // months won per user_id (accumulates)
+  settledMonths?: string[];                             // finished months already counted; undefined ⇒ migrate
 }
 
 export interface RaceRacer {
   id: string;
   name: string;
-  points: number;       // cumulative
+  points: number;       // this calendar month's points
   todayCount: number;   // distinct words practiced today
   todayPoints: number;  // points they'd earn if the day ended now
+  stars: number;        // months won (accumulated)
 }
 
 // Cumulative daily-activity history for the "Progress over time" chart. `dates`
@@ -286,10 +288,10 @@ export interface RaceHistory {
 }
 
 export interface RaceResponse {
-  goal: number;
+  month: string;        // current calendar month 'YYYY-MM' (Europe/Berlin)
   today: string;
-  racers: RaceRacer[];  // sorted by points desc
-  winnerId: string | null;
+  racers: RaceRacer[];  // sorted by this month's points desc
   highscores: { date: string; name: string; count: number }[]; // top single-day scores, desc
   history: RaceHistory;
+  stars: Record<string, number>; // months won per user_id (for app-wide display)
 }

@@ -325,17 +325,25 @@ export async function addGeneratedTopic(topic: ArticleTopic): Promise<void> {
 // ─── the race (global standings) ───────────────────────────────────────────────
 
 const emptyRace: RaceResponse = {
-  goal: 100,
+  month: '',
   today: '',
   racers: [],
-  winnerId: null,
   highscores: [],
   history: { dates: [], series: [] },
+  stars: {},
 };
 
 // Global leaderboard — no user header needed. Tolerant read for display only.
 export async function getRace(): Promise<RaceResponse> {
   return getJson<RaceResponse>('/api/race', emptyRace);
+}
+
+// Accumulated months-won (⭐) per user, for app-wide display. Tolerant read.
+export async function getStars(): Promise<{ stars: Record<string, number>; month: string }> {
+  return getJson<{ stars: Record<string, number>; month: string }>('/api/race/stars', {
+    stars: {},
+    month: '',
+  });
 }
 
 export async function deleteGeneratedTopic(id: string): Promise<void> {

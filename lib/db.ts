@@ -237,7 +237,9 @@ export async function setArticleTopics(userId: string, topics: ArticleTopic[]): 
 // ─── race (one global jsonb row, id='global') ────────────────────────────────────
 
 const RACE_ROW_ID = 'global';
-const EMPTY_RACE: RaceState = { points: {}, dailyCounts: {}, settledDates: [], highscores: [] };
+// Note: `settledMonths` is intentionally left undefined here — the race route treats
+// "undefined" as "first run on the monthly model" and seeds it (no retroactive stars).
+const EMPTY_RACE: RaceState = { dailyCounts: {}, settledDates: [], highscores: [], stars: {} };
 
 export async function getRaceState(): Promise<RaceState> {
   const { data, error } = await db()
@@ -249,10 +251,11 @@ export async function getRaceState(): Promise<RaceState> {
   const s = data?.data as Partial<RaceState> | undefined;
   if (!s) return { ...EMPTY_RACE };
   return {
-    points: s.points ?? {},
     dailyCounts: s.dailyCounts ?? {},
     settledDates: s.settledDates ?? [],
     highscores: s.highscores ?? [],
+    stars: s.stars ?? {},
+    settledMonths: s.settledMonths, // pass through; undefined ⇒ migrate/seed
   };
 }
 

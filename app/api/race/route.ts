@@ -6,19 +6,20 @@ import {
   getDailyActionCounts,
   getAllDailyMaps,
 } from '@/lib/db';
-import { berlinDayStart, awardPoints } from '@/lib/race';
+import { berlinDayStart, berlinMonth, awardPoints, monthlyTotals, settleStars } from '@/lib/race';
 import { PROFILES } from '@/lib/profiles';
 import { RaceResponse, RaceHighscore, RaceHistory } from '@/lib/types';
 
-const GOAL = 100;
 // Keep ~30 days of settled snapshots so the global row can't grow without bound.
 const KEEP_DAILY_DAYS = 30;
 
-// GET reads the standings and self-heals: it snapshots today's live counts and
-// settles any finished day into cumulative points. Settlement is idempotent
-// (guarded by settledDates), so this side-effect on a GET is safe to repeat.
+// GET reads the standings and self-heals: it snapshots today's live counts, records
+// finished-day highscores, and awards a ⭐ to the winner of any finished month. All
+// side-effects are idempotent (guarded by settledDates / settledMonths), so repeating
+// this on a GET is safe. Points are scoped to the current calendar month.
 export async function GET() {
   const { date: today } = berlinDayStart();
+  const currentMonth = berlinMonth();
 
   const nameOf = (id: string) => PROFILES.find(p => p.id === id)?.name ?? id;
   const EMPTY_HISTORY: RaceHistory = { dates: [], series: [] };
@@ -58,20 +59,22 @@ export async function GET() {
     return series.length ? { dates, series } : EMPTY_HISTORY;
   }
 
-  // Build the response from a points map + today's live counts + persisted records.
+  // Build the response from this month's points + today's live counts + persisted data.
   function buildResponse(
-    points: Record<string, number>,
+    monthPoints: Record<string, number>,
     live: Record<string, number>,
     persisted: RaceHighscore[] = [],
+    stars: Record<string, number> = {},
     history: RaceHistory = EMPTY_HISTORY
   ): RaceResponse {
     const todayPoints = awardPoints(live);
     const racers = PROFILES.map(p => ({
       id: p.id,
       name: p.name,
-      points: points[p.id] ?? 0,
+      points: monthPoints[p.id] ?? 0,
       todayCount: live[p.id] ?? 0,
       todayPoints: todayPoints[p.id] ?? 0,
+      stars: stars[p.id] ?? 0,
     })).sort((a, b) => b.points - a.points || b.todayCount - a.todayCount);
 
     // Top-5 single-day records: persisted (settled) plus today's live as a
@@ -86,8 +89,7 @@ export async function GET() {
       .slice(0, 5)
       .map(h => ({ date: h.date, name: nameOf(h.userId), count: h.count }));
 
-    const winner = racers.find(r => r.points >= GOAL);
-    return { goal: GOAL, today, racers, winnerId: winner?.id ?? null, highscores, history };
+    return { month: currentMonth, today, racers, highscores, history, stars };
   }
 
   // Without a database, return an empty (zeroed) board rather than erroring.
@@ -114,23 +116,15 @@ export async function GET() {
     // Snapshot today's count (overwrite — last write of the day wins at settlement).
     state.dailyCounts[today] = liveTracked;
 
-    // Settle any finished, unsettled day into cumulative points.
+    // Record finished, unsettled days as single-day highscore candidates.
     const settled = new Set(state.settledDates);
-    let changed = false;
     for (const d of Object.keys(state.dailyCounts)) {
       if (d < today && !settled.has(d)) {
-        const awards = awardPoints(state.dailyCounts[d]);
-        for (const [id, pts] of Object.entries(awards)) {
-          if (!ids.has(id)) continue;
-          state.points[id] = (state.points[id] ?? 0) + pts;
-        }
-        // Record each user's day total as a single-day highscore candidate.
         for (const [id, count] of Object.entries(state.dailyCounts[d])) {
           if (ids.has(id) && count > 0) state.highscores.push({ date: d, userId: id, count });
         }
         settled.add(d);
         state.settledDates.push(d);
-        changed = true;
       }
     }
 
@@ -141,18 +135,21 @@ export async function GET() {
     // Prune old settled snapshots to bound the row size.
     const cutoff = new Date(Date.now() - KEEP_DAILY_DAYS * 86400000).toISOString().slice(0, 10);
     for (const d of Object.keys(state.dailyCounts)) {
-      if (d < cutoff && settled.has(d)) {
-        delete state.dailyCounts[d];
-        changed = true;
-      }
+      if (d < cutoff && settled.has(d)) delete state.dailyCounts[d];
     }
 
-    // We always update today's snapshot; persist it.
-    await setRaceState(state);
-    void changed;
+    // Monthly points from the per-user daily history; award ⭐ for finished months.
+    const totals = monthlyTotals(dailyMaps, today);
+    settleStars(state, totals, currentMonth);
 
+    // We always update today's snapshot; persist the whole state.
+    await setRaceState(state);
+
+    const monthPoints = totals[currentMonth] ?? {};
     const history = buildHistory(dailyMaps, liveTracked);
-    return NextResponse.json(buildResponse(state.points, liveTracked, state.highscores, history));
+    return NextResponse.json(
+      buildResponse(monthPoints, liveTracked, state.highscores, state.stars, history)
+    );
   } catch {
     // Never break the page on a transient DB error — show a zeroed board.
     return NextResponse.json(buildResponse({}, {}));

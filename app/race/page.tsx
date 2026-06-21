@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getRace } from '@/lib/storage';
+import { formatStars } from '@/lib/race';
 import { RaceResponse, RaceHistory } from '@/lib/types';
 
 const REFRESH_MS = 20000;
@@ -21,6 +22,13 @@ const LINE_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7'];
 
 function fmtPoints(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+// 'YYYY-MM' -> e.g. "June 2026". Parsed as local midnight so the month doesn't shift.
+function fmtMonth(month: string): string {
+  const d = new Date(`${month}-01T00:00:00`);
+  if (isNaN(d.getTime())) return month;
+  return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
 // 'YYYY-MM-DD' -> e.g. "17 Jun". Parsed as local midnight so the date doesn't shift.
@@ -176,8 +184,9 @@ export default function RacePage() {
     );
   }
 
-  const { goal, racers, winnerId, highscores, history } = race;
-  const winner = racers.find(r => r.id === winnerId);
+  const { month, racers, highscores, history } = race;
+  // Cars race relative to the current month's leader (no fixed finish line).
+  const leaderPoints = Math.max(0, ...racers.map(r => r.points));
   // Map each racer id to its car color index (standings order) so chart lines match.
   const colorIndex = new Map(racers.map((r, i) => [r.id, i]));
   const colorOf = (id: string) =>
@@ -196,25 +205,20 @@ export default function RacePage() {
             <span>🏁</span> THE RACE
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            First to {goal} points wins. Most learning each day scores 5 · 4 · 3 · 2 · 1.
-            Every flashcard and every conjugated form counts.
+            Most points this calendar month wins a ⭐ — then it resets on the 1st. Most learning
+            each day scores 5 · 4 · 3 · 2 · 1; every flashcard and conjugated form counts.
           </p>
         </div>
 
-        {winner && (
-          <div className="bg-gradient-to-r from-amber-100 to-yellow-50 border border-amber-200 rounded-xl p-4 text-center">
-            <p className="text-2xl">🏆</p>
-            <p className="font-bold text-amber-800">{winner.name} wins the race!</p>
-            <p className="text-xs text-amber-700 mt-0.5">{fmtPoints(winner.points)} points</p>
-          </div>
-        )}
-
-        {/* ===== Cars racing to the finish ===== */}
+        {/* ===== Cars racing the month's leader ===== */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-          <h2 className="font-bold text-gray-900 text-base">Standings</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-gray-900 text-base">Standings</h2>
+            <span className="text-xs font-medium text-gray-400">{fmtMonth(month)}</span>
+          </div>
           <div className="space-y-3">
             {racers.map((r, i) => {
-              const pct = Math.min(r.points, goal) / goal;
+              const pct = leaderPoints > 0 ? r.points / leaderPoints : 0;
               const car = CAR_COLORS[i % CAR_COLORS.length];
               const tint = TRACK_TINTS[i % TRACK_TINTS.length];
               const leader = i === 0 && r.points > 0;
@@ -223,11 +227,10 @@ export default function RacePage() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
                       {leader && <span title="Leader">👑</span>}
-                      {r.name}
+                      {r.name + formatStars(r.stars)}
                     </span>
                     <span className="text-sm font-bold tabular-nums text-gray-900">
                       {fmtPoints(r.points)}
-                      <span className="text-xs font-normal text-gray-400"> / {goal}</span>
                     </span>
                   </div>
                   <div className={`relative h-9 rounded-lg ${tint} overflow-hidden`}>
