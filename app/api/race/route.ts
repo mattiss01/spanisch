@@ -41,9 +41,10 @@ export async function GET() {
     }
     if (!minDate) return EMPTY_HISTORY;
 
-    // Continuous Berlin-date range minDate…today (step one calendar day via UTC).
+    // Continuous Berlin-date range, starting one day BEFORE the first activity so
+    // every line visibly starts from 0, through today (step one calendar day via UTC).
     const dates: string[] = [];
-    for (let t = Date.parse(`${minDate}T00:00:00Z`); ; t += 86400000) {
+    for (let t = Date.parse(`${minDate}T00:00:00Z`) - 86400000; ; t += 86400000) {
       const d = new Date(t).toISOString().slice(0, 10);
       dates.push(d);
       if (d >= today) break;
