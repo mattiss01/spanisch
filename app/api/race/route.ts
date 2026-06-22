@@ -66,7 +66,8 @@ export async function GET() {
     live: Record<string, number>,
     persisted: RaceHighscore[] = [],
     stars: Record<string, number> = {},
-    history: RaceHistory = EMPTY_HISTORY
+    history: RaceHistory = EMPTY_HISTORY,
+    dailyMaps: Record<string, Record<string, number>> = {}
   ): RaceResponse {
     const todayPoints = awardPoints(live);
     const racers = PROFILES.map(p => ({
@@ -90,7 +91,23 @@ export async function GET() {
       .slice(0, 5)
       .map(h => ({ date: h.date, name: nameOf(h.userId), count: h.count }));
 
-    return { month: currentMonth, today, racers, highscores, history, stars };
+    // Each person's own best single day ever, from retained daily history + today's
+    // live count + persisted records. Shown under the top-5 so everyone's best is visible.
+    const ids = new Set(PROFILES.map(p => p.id));
+    const best: Record<string, { date: string; count: number }> = {};
+    const consider = (id: string, date: string, count: number) => {
+      if (!ids.has(id) || count <= 0) return;
+      if (!best[id] || count > best[id].count) best[id] = { date, count };
+    };
+    for (const [id, days] of Object.entries(dailyMaps))
+      for (const [d, c] of Object.entries(days)) consider(id, d, c);
+    for (const [id, c] of Object.entries(live)) consider(id, today, c);
+    for (const h of persisted) consider(h.userId, h.date, h.count);
+    const personalBests = PROFILES.filter(p => best[p.id])
+      .map(p => ({ date: best[p.id].date, name: p.name, count: best[p.id].count }))
+      .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date));
+
+    return { month: currentMonth, today, racers, highscores, personalBests, history, stars };
   }
 
   // Without a database, return an empty (zeroed) board rather than erroring.
@@ -149,7 +166,7 @@ export async function GET() {
     const monthPoints = totals[currentMonth] ?? {};
     const history = buildHistory(dailyMaps, liveTracked);
     return NextResponse.json(
-      buildResponse(monthPoints, liveTracked, state.highscores, state.stars, history)
+      buildResponse(monthPoints, liveTracked, state.highscores, state.stars, history, dailyMaps)
     );
   } catch {
     // Never break the page on a transient DB error — show a zeroed board.

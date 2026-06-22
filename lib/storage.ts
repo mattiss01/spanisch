@@ -348,6 +348,7 @@ const emptyRace: RaceResponse = {
   today: '',
   racers: [],
   highscores: [],
+  personalBests: [],
   history: { dates: [], series: [] },
   stars: {},
 };

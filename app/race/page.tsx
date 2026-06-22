@@ -195,7 +195,10 @@ export default function RacePage() {
     );
   }
 
-  const { month, today, racers, highscores, history } = race;
+  const { month, today, racers, highscores, personalBests, history } = race;
+  // Personal bests of people who aren't already in the top-5 leaderboard.
+  const topNames = new Set(highscores.map(h => h.name));
+  const otherBests = personalBests.filter(b => !topNames.has(b.name));
   // Cars race relative to the current month's leader (no fixed finish line).
   const leaderPoints = Math.max(0, ...racers.map(r => r.points));
   const daysLeft = daysLeftInMonth(month, today);
@@ -355,6 +358,25 @@ export default function RacePage() {
               })}
             </div>
           )}
+
+          {otherBests.length > 0 && (
+            <div className="pt-1 space-y-2">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                Personal bests
+              </p>
+              {otherBests.map(h => (
+                <div key={`pb-${h.name}`} className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm shrink-0 text-gray-300">★</span>
+                  <span className="text-sm font-medium text-gray-600 flex-1 truncate">{h.name}</span>
+                  <span className="text-xs text-gray-400 tabular-nums shrink-0">{fmtDate(h.date)}</span>
+                  <span className="text-sm font-bold text-gray-700 tabular-nums w-10 text-right shrink-0">
+                    {h.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <p className="text-[11px] text-gray-400 pt-1">Highest single-day scores ever.</p>
         </section>
 

@@ -303,6 +303,9 @@ export interface RaceResponse {
   today: string;
   racers: RaceRacer[];  // sorted by this month's points desc
   highscores: { date: string; name: string; count: number }[]; // top single-day scores, desc
+  // Each person's own best single day (all-time), desc — shown under the top-5 so
+  // everyone's record is visible even if it didn't make the leaderboard.
+  personalBests: { date: string; name: string; count: number }[];
   history: RaceHistory;
   stars: Record<string, number>; // months won per user_id (for app-wide display)
 }
