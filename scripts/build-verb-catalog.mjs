@@ -104,7 +104,12 @@ function glossMap() {
   return map;
 }
 
-const catalogSrc = fs.readFileSync(catalogPath, 'utf8');
+let catalogSrc = fs.readFileSync(catalogPath, 'utf8');
+// Idempotent re-sync: strip any previously generated block so we can regenerate.
+catalogSrc = catalogSrc.replace(
+  /(\r?\n)  \/\/ ── Frequency-sourced verbs \(auto-generated[\s\S]*?(\r?\n\];\r?\n\r?\nexport function verbToExercise)/,
+  '$2',
+);
 const existing = new Set([...catalogSrc.matchAll(/infinitive:\s*'([^']+)'/g)].map(m => m[1].toLowerCase()));
 const examples = JSON.parse(fs.readFileSync(path.join(root, 'public', 'vocab-examples.json'), 'utf8'));
 const gloss = glossMap();
@@ -129,9 +134,6 @@ const header =
   '  // Present forms authored in public/vocab-examples.json; preterite & future\n' +
   '  // derived by rule from the infinitive.\n';
 const anchor = /(\r?\n)\];(\r?\n\r?\nexport function verbToExercise)/;
-if (catalogSrc.includes('// ── Frequency-sourced verbs (auto-generated')) {
-  console.error('Already appended — aborting.'); process.exit(1);
-}
 if (!anchor.test(catalogSrc)) { console.error('Insertion anchor not found'); process.exit(1); }
 const out = catalogSrc.replace(anchor, (_, a, b) => a + header + lines.join('\n') + '\n];' + b);
 fs.writeFileSync(catalogPath, out, 'utf8');
