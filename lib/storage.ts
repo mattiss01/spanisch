@@ -8,6 +8,7 @@ import {
   ArticleItem,
   ArticleTopic,
   RaceResponse,
+  SentenceProgress,
 } from './types';
 import { PROFILE_STORAGE_KEY } from './profiles';
 import { berlinToday } from './race';
@@ -128,6 +129,8 @@ export async function recordExercise(
     daily[dayKey] = (daily[dayKey] ?? 0) + total;
   } else if (type === 'conjugation' || type === 'article') {
     daily[dayKey] = (daily[dayKey] ?? 0) + Math.round(total / 2); // half credit per item
+  } else if (type === 'sentence') {
+    daily[dayKey] = (daily[dayKey] ?? 0) + total * 2; // 2 points per translated sentence
   }
 
   const newStats: ProgressStats = {
@@ -146,6 +149,21 @@ export async function recordExercise(
   };
 
   await putJson('/api/data/stats', newStats);
+}
+
+// ─── sentence translation SRS ──────────────────────────────────────────────────
+
+// Tolerant read for display.
+export async function getSentenceProgress(): Promise<SentenceProgress[]> {
+  const data = await getJson<unknown[]>('/api/data/sentences', []);
+  return data.filter(
+    (r): r is SentenceProgress =>
+      typeof r === 'object' && r !== null && typeof (r as SentenceProgress).key === 'string'
+  );
+}
+
+export async function setSentenceProgress(rows: SentenceProgress[]): Promise<void> {
+  await putJson('/api/data/sentences', rows);
 }
 
 // ─── conjugation ─────────────────────────────────────────────────────────────

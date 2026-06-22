@@ -8,6 +8,7 @@ import { formatStars } from '@/lib/race';
 
 const nav = [
   { href: '/vokabeln', label: 'Vocabulary', icon: '📖' },
+  { href: '/saetze', label: 'Sentences', icon: '✍️' },
   { href: '/konjugation', label: 'Verbs', icon: '🔤' },
   // Global competitive leaderboard — everyone sees the same standings.
   { href: '/race', label: 'The Race', icon: '🏁' },

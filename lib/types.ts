@@ -7,7 +7,18 @@ export type ExerciseType =
   | 'reading'
   | 'vocabulary'
   | 'conversation'
-  | 'article';
+  | 'article'
+  | 'sentence';
+
+// SRS state for translating an example sentence, keyed by the normalized Spanish
+// word the sentence belongs to. Stored as one JSONB row per user (table `sentences`).
+export interface SentenceProgress {
+  key: string;          // normalized Spanish word (norm/normWord)
+  level: number;        // 1–4 learning, 5 = known
+  nextReview: string;   // ISO date; past/empty handled by isDue
+  lastReviewed?: string;
+  reviewCount: number;
+}
 
 export type Difficulty = 'B1' | 'B2';
 

@@ -11,6 +11,7 @@ import { isBeginner } from '@/lib/profiles';
 import { berlinToday } from '@/lib/race';
 import { PRONOUNS } from '@/lib/verb-catalog';
 import { loadExamples, VocabExample } from '@/lib/vocab-examples';
+import { Confidence, LEVEL_INTERVALS, isDue, computeNewLevel, nextReviewDate } from '@/lib/srs';
 import StreakBanner from '@/components/StreakBanner';
 
 const DAILY_GOAL = 20;
@@ -19,7 +20,6 @@ const ROUND_SIZE = 20;
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
-type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
 type WordSort = 'alpha' | 'review';
 type WordGroup = 'none' | 'phase' | 'due';
 
@@ -37,8 +37,6 @@ interface SessionItem {
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
 
-const LEVEL_INTERVALS = [0, 1, 3, 7, 14];
-
 const LEVEL_LABELS = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Known'];
 const LEVEL_COLORS = [
   '',
@@ -52,35 +50,6 @@ const LEVEL_COLORS = [
 function getLevel(v: VocabEntry): number {
   if (v.level !== undefined) return v.level;
   return v.status === 'bekannt' ? 5 : 1;
-}
-
-function isDue(nextReview?: string): boolean {
-  if (!nextReview) return true;
-  return new Date(nextReview) <= new Date();
-}
-
-function computeNewLevel(currentLevel: number, correct: boolean, conf: Confidence): number {
-  if (conf === 'again') return 1;                            // restart from phase 1
-  if (!correct) return Math.max(1, currentLevel - 1); // wrong: drop a phase
-  if (conf === 'bekannt') return 5;                          // Easy: mark known
-  if (conf === 'unsicher') return Math.max(1, currentLevel); // Hard: stay in phase
-  return Math.min(5, currentLevel + 1);                      // Good: +1 phase
-}
-
-function nextReviewDate(newLevel: number, correct: boolean, conf: Confidence): string {
-  // "Again" (restart) or wrong: due now → shows in Review today.
-  if (conf === 'again' || !correct) return new Date().toISOString();
-  if (newLevel >= 5) return '';
-  // "Hard" / "Keep phase": review tomorrow.
-  if (conf === 'unsicher') {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString();
-  }
-  const days = LEVEL_INTERVALS[newLevel] ?? 14;
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString();
 }
 
 // ─── Answer checking ─────────────────────────────────────────────────────────
