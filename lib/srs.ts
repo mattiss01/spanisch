@@ -1,5 +1,6 @@
 // Shared spaced-repetition helpers used by Vocabulary and Sentences practice.
 // Levels: 1–4 are learning phases, 5 = known (no further review).
+// (deploy check)
 
 export type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
 
