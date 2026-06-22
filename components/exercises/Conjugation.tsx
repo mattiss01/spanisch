@@ -10,10 +10,12 @@ interface Props {
 }
 
 // Conjugation answers are checked accent-insensitively: a missing or wrong accent
-// (e.g. "hablo" vs "habló", "comi" vs "comí") still counts as correct.
+// (e.g. "hablo" vs "habló", "comi" vs "comí") still counts as correct. For German,
+// "ß" and "ss" are treated as equal so it can be typed on any keyboard
+// (e.g. "heißt" vs "heisst", "groß" vs "gross").
 function answersMatch(a: string, b: string): boolean {
   const norm = (s: string) =>
-    s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    s.trim().toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '');
   return norm(a) === norm(b);
 }
 
