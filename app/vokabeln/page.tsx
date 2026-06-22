@@ -931,6 +931,7 @@ function Flashcard({
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [retype, setRetype] = useState('');
+  const [showConj, setShowConj] = useState(false); // conjugations hidden until requested
   const inputRef = useRef<HTMLInputElement>(null);
   const retypeRef = useRef<HTMLInputElement>(null);
 
@@ -1037,17 +1038,23 @@ function Flashcard({
               )}
               {item.conj && item.conj.length === PRONOUNS.length && (
                 <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                    Presente
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                    {PRONOUNS.map((p, i) => (
-                      <div key={p} className="flex justify-between gap-2 text-sm">
-                        <span className="text-gray-400">{p}</span>
-                        <span className="font-medium text-gray-800 tabular-nums">{item.conj![i]}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConj(v => !v)}
+                    className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
+                  >
+                    Presente {showConj ? '▲' : '▼'}
+                  </button>
+                  {showConj && (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1">
+                      {PRONOUNS.map((p, i) => (
+                        <div key={p} className="flex justify-between gap-2 text-sm">
+                          <span className="text-gray-400">{p}</span>
+                          <span className="font-medium text-gray-800 tabular-nums">{item.conj![i]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
