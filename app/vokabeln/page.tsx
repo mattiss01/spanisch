@@ -735,19 +735,23 @@ export default function VokabelnPage() {
           </div>
         )}
 
-        <StreakBanner streak={displayStreak} todayCount={todayCount} goal={DAILY_GOAL} />
+        {phase !== 'active' && (
+          <>
+            <StreakBanner streak={displayStreak} todayCount={todayCount} goal={DAILY_GOAL} />
 
-        <ChallengeStrip
-          todayCount={todayCount}
-          top5Threshold={top5Threshold}
-          top4Threshold={top4Threshold}
-          top3Threshold={top3Threshold}
-          top2Threshold={top2Threshold}
-          top1Threshold={top1Threshold}
-          personalBest={personalBest}
-          rank={myRank}
-          yesterday={yesterdayCount}
-        />
+            <ChallengeStrip
+              todayCount={todayCount}
+              top5Threshold={top5Threshold}
+              top4Threshold={top4Threshold}
+              top3Threshold={top3Threshold}
+              top2Threshold={top2Threshold}
+              top1Threshold={top1Threshold}
+              personalBest={personalBest}
+              rank={myRank}
+              yesterday={yesterdayCount}
+            />
+          </>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
