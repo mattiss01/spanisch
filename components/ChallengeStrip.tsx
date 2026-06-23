@@ -21,31 +21,41 @@ export default function ChallengeStrip({
   rank: number | null;          // live position today among racers
   yesterday: number;
 }) {
-  const lines: { icon: string; text: string; done?: boolean }[] = [];
+  const lines: { icon: string; text?: string; achieved?: string; next?: string; done?: boolean }[] = [];
 
 
-  const allTimeMilestones: { threshold: number; label: string }[] = [];
-  if (top5Threshold != null) allTimeMilestones.push({ threshold: top5Threshold, label: 'the all-time top 5' });
-  if (top4Threshold != null) allTimeMilestones.push({ threshold: top4Threshold, label: 'all-time 4th place' });
-  if (top3Threshold != null) allTimeMilestones.push({ threshold: top3Threshold, label: 'all-time 3rd place' });
-  if (top2Threshold != null) allTimeMilestones.push({ threshold: top2Threshold, label: 'all-time 2nd place' });
-  if (top1Threshold != null) allTimeMilestones.push({ threshold: top1Threshold, label: 'all-time #1' });
+  const allTimeMilestones: { threshold: number; label: string; place: number }[] = [];
+  if (top5Threshold != null) allTimeMilestones.push({ threshold: top5Threshold, label: 'the all-time top 5', place: 5 });
+  if (top4Threshold != null) allTimeMilestones.push({ threshold: top4Threshold, label: 'all-time 4th place', place: 4 });
+  if (top3Threshold != null) allTimeMilestones.push({ threshold: top3Threshold, label: 'all-time 3rd place', place: 3 });
+  if (top2Threshold != null) allTimeMilestones.push({ threshold: top2Threshold, label: 'all-time 2nd place', place: 2 });
+  if (top1Threshold != null) allTimeMilestones.push({ threshold: top1Threshold, label: 'all-time #1', place: 1 });
+
+  function congratsForPlace(place: number): string {
+    if (place === 5) return "Congrats, you're in the top 5!";
+    if (place === 1) return 'All-time #1 day!';
+    return `Congrats, top ${place}!`;
+  }
 
   if (allTimeMilestones.length > 0) {
+    const achieved = [...allTimeMilestones].reverse().find((m) => todayCount >= m.threshold);
     const next = allTimeMilestones.find((m) => todayCount < m.threshold);
 
-    if (top5Threshold != null && todayCount >= top5Threshold) {
-      lines.push({ icon: '🏅', text: "Congrats, you're in the top 5!", done: true });
-    }
-
-    if (next) {
+    if (achieved && next) {
+      const gap = next.threshold - todayCount;
+      lines.push({
+        icon: '🏅',
+        achieved: congratsForPlace(achieved.place),
+        next: `${gap} card${gap === 1 ? '' : 's'} from ${next.label}`,
+      });
+    } else if (next) {
       const gap = next.threshold - todayCount;
       lines.push({
         icon: '🏅',
         text: `${gap} card${gap === 1 ? '' : 's'} from ${next.label}`,
       });
-    } else {
-      lines.push({ icon: '🏅', text: 'All-time #1 day!', done: true });
+    } else if (achieved) {
+      lines.push({ icon: '🏅', text: congratsForPlace(achieved.place), done: true });
     }
   }
 
@@ -83,7 +93,14 @@ export default function ChallengeStrip({
       {lines.map((l, i) => (
         <div key={i} className="flex items-center gap-2 text-sm">
           <span className="w-5 text-center">{l.icon}</span>
-          <span className={l.done ? 'font-semibold text-green-700' : 'text-gray-700'}>{l.text}</span>
+          {l.achieved != null ? (
+            <span>
+              <span className="font-semibold text-green-700">{l.achieved}</span>
+              {l.next && <span className="text-gray-700"> — {l.next}</span>}
+            </span>
+          ) : (
+            <span className={l.done ? 'font-semibold text-green-700' : 'text-gray-700'}>{l.text}</span>
+          )}
         </div>
       ))}
     </div>
