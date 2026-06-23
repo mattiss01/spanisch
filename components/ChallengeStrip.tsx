@@ -3,25 +3,50 @@
 export default function ChallengeStrip({
   todayCount,
   top5Threshold,
+  top4Threshold,
+  top3Threshold,
+  top2Threshold,
+  top1Threshold,
   personalBest,
   rank,
   yesterday,
 }: {
   todayCount: number;
   top5Threshold: number | null; // 5th place all-time record count (null if < 5 records)
+  top4Threshold: number | null;
+  top3Threshold: number | null;
+  top2Threshold: number | null;
+  top1Threshold: number | null;
   personalBest: number;         // best PRIOR day (excludes today)
   rank: number | null;          // live position today among racers
   yesterday: number;
 }) {
   const lines: { icon: string; text: string; done?: boolean }[] = [];
 
-  if (top5Threshold != null) {
-    const gap = top5Threshold - todayCount;
-    lines.push(
-      gap > 0
-        ? { icon: '🏅', text: `${gap} card${gap === 1 ? '' : 's'} from the all-time top 5` }
-        : { icon: '🏅', text: 'In the all-time top 5!', done: true },
-    );
+
+  const allTimeMilestones: { threshold: number; label: string }[] = [];
+  if (top5Threshold != null) allTimeMilestones.push({ threshold: top5Threshold, label: 'the all-time top 5' });
+  if (top4Threshold != null) allTimeMilestones.push({ threshold: top4Threshold, label: 'all-time 4th place' });
+  if (top3Threshold != null) allTimeMilestones.push({ threshold: top3Threshold, label: 'all-time 3rd place' });
+  if (top2Threshold != null) allTimeMilestones.push({ threshold: top2Threshold, label: 'all-time 2nd place' });
+  if (top1Threshold != null) allTimeMilestones.push({ threshold: top1Threshold, label: 'all-time #1' });
+
+  if (allTimeMilestones.length > 0) {
+    const next = allTimeMilestones.find((m) => todayCount < m.threshold);
+
+    if (top5Threshold != null && todayCount >= top5Threshold) {
+      lines.push({ icon: '🏅', text: "Congrats, you're in the top 5!", done: true });
+    }
+
+    if (next) {
+      const gap = next.threshold - todayCount;
+      lines.push({
+        icon: '🏅',
+        text: `${gap} card${gap === 1 ? '' : 's'} from ${next.label}`,
+      });
+    } else {
+      lines.push({ icon: '🏅', text: 'All-time #1 day!', done: true });
+    }
   }
 
   if (personalBest > 0) {

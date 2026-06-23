@@ -262,6 +262,10 @@ export default function VokabelnPage() {
   // Gamification derived values.
   const yesterdayCount = stats?.daily?.[berlinToday(new Date(Date.now() - 86400000))] ?? 0;
   const personalBest = bestPriorDay(stats?.daily, berlinToday());
+  const top1Threshold = race?.highscores[0]?.count ?? null;
+  const top2Threshold = race?.highscores[1]?.count ?? null;
+  const top3Threshold = race?.highscores[2]?.count ?? null;
+  const top4Threshold = race?.highscores[3]?.count ?? null;
   const top5Threshold = race?.highscores[4]?.count ?? null;
   const myRankIdx = race ? [...race.racers].sort((a, b) => b.todayCount - a.todayCount).findIndex(r => r.id === profile.id) : -1;
   const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
@@ -736,6 +740,10 @@ export default function VokabelnPage() {
         <ChallengeStrip
           todayCount={todayCount}
           top5Threshold={top5Threshold}
+          top4Threshold={top4Threshold}
+          top3Threshold={top3Threshold}
+          top2Threshold={top2Threshold}
+          top1Threshold={top1Threshold}
           personalBest={personalBest}
           rank={myRank}
           yesterday={yesterdayCount}
