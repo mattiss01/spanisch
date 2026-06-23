@@ -8,8 +8,6 @@ import {
   getStats,
   recordExercise,
   getRace,
-  getSentenceProgress,
-  getConjugationRecords,
 } from '@/lib/storage';
 import { VocabEntry, ProgressStats, RaceResponse } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
@@ -20,10 +18,8 @@ import { berlinToday } from '@/lib/race';
 import { PRONOUNS } from '@/lib/verb-catalog';
 import { loadExamples, VocabExample } from '@/lib/vocab-examples';
 import { Confidence, LEVEL_INTERVALS, isDue, computeNewLevel, nextReviewDate } from '@/lib/srs';
-import { computeBadges } from '@/lib/achievements';
 import StreakBanner from '@/components/StreakBanner';
 import ChallengeStrip from '@/components/ChallengeStrip';
-import Achievements from '@/components/Achievements';
 import Celebration from '@/components/Celebration';
 
 const DAILY_GOAL = 20;
@@ -183,52 +179,15 @@ export default function VokabelnPage() {
   const [examples, setExamples] = useState<Map<string, VocabExample>>(new Map());
   useEffect(() => { loadExamples().then(setExamples); }, []);
 
-  // Gamification: race standings + cross-section counts (tolerant; never block).
+  // Gamification: race standings for the Challenges strip (tolerant; never block).
   const [race, setRace] = useState<RaceResponse | null>(null);
-  const [sentencesDone, setSentencesDone] = useState(0);
-  const [verbsDone, setVerbsDone] = useState(0);
-  useEffect(() => {
-    getRace().then(setRace).catch(() => {});
-    getSentenceProgress().then(r => setSentencesDone(r.length)).catch(() => {});
-    getConjugationRecords().then(r => setVerbsDone(r.length)).catch(() => {});
-  }, []);
+  useEffect(() => { getRace().then(setRace).catch(() => {}); }, []);
 
   // In-session combo + celebration toast.
   const [combo, setCombo] = useState(0);
   const [celebration, setCelebration] = useState<string | null>(null);
   const celebrate = useCallback((msg: string) => setCelebration(msg), []);
   const streakSeen = useRef<number | null>(null);
-
-  // Badge "newly unlocked" tracking (acknowledged ids persisted per profile).
-  const [newBadgeIds, setNewBadgeIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!profile || typeof localStorage === 'undefined') return;
-    const k = `spanisch_badges_${profile.id}`;
-    const wordsKnown = vocab.filter(v => getLevel(v) === 5).length;
-    const inTop5 = !!race?.highscores.some(h => h.name === profile.name);
-    const unlocked = computeBadges({
-      wordsKnown,
-      streak: stats?.streak ?? 0,
-      stars: race?.stars?.[profile.id] ?? 0,
-      sentencesDone,
-      verbsDone,
-      inTop5,
-    }).filter(b => b.unlocked).map(b => b.id);
-
-    const raw = localStorage.getItem(k);
-    if (raw === null) {
-      // First run on this device: acknowledge everything silently (no spam).
-      localStorage.setItem(k, JSON.stringify(unlocked));
-      return;
-    }
-    const ackedSet = new Set(JSON.parse(raw) as string[]);
-    const fresh = unlocked.filter(id => !ackedSet.has(id));
-    if (fresh.length > 0) {
-      localStorage.setItem(k, JSON.stringify(unlocked));
-      setNewBadgeIds(new Set(fresh));
-      celebrate('Achievement unlocked! 🏆');
-    }
-  }, [profile, vocab, stats, race, sentencesDone, verbsDone, celebrate]);
 
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -306,14 +265,6 @@ export default function VokabelnPage() {
   const top5Threshold = race?.highscores[4]?.count ?? null;
   const myRankIdx = race ? [...race.racers].sort((a, b) => b.todayCount - a.todayCount).findIndex(r => r.id === profile.id) : -1;
   const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
-  const badges = computeBadges({
-    wordsKnown: bekanntWords.length,
-    streak: stats?.streak ?? 0,
-    stars: race?.stars?.[profile.id] ?? 0,
-    sentencesDone,
-    verbsDone,
-    inTop5: !!race?.highscores.some(h => h.name === profile.name),
-  });
 
   function makeItem(
     de: string,
@@ -999,8 +950,6 @@ export default function VokabelnPage() {
             )}
           </div>
         )}
-
-        <Achievements badges={badges} newIds={newBadgeIds} />
       </div>
 
       <Celebration message={celebration} onDone={() => setCelebration(null)} />
