@@ -108,27 +108,6 @@ export default function ErfolgePage() {
   });
   const unlocked = badges.filter(b => b.unlocked);
 
-  // Detect newly-unlocked badges once data is loaded (vs. acknowledged set).
-  useEffect(() => {
-    if (!loaded || seeded.current || typeof localStorage === 'undefined') return;
-    seeded.current = true;
-    const k = `spanisch_badges2_${profile.id}`;
-    const ids = unlocked.map(b => b.id);
-    const raw = localStorage.getItem(k);
-    if (raw === null) {
-      localStorage.setItem(k, JSON.stringify(ids)); // first visit: seed silently
-      return;
-    }
-    const acked = new Set(JSON.parse(raw) as string[]);
-    const fresh = ids.filter(id => !acked.has(id));
-    if (fresh.length > 0) {
-      localStorage.setItem(k, JSON.stringify(ids));
-      setNewIds(new Set(fresh));
-      setCelebration(fresh.length === 1 ? 'Achievement unlocked! 🏆' : `${fresh.length} achievements unlocked! 🏆`);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
-
   return (
     <main className="md:ml-56 min-h-screen bg-gray-50 pb-24 md:pb-8">
       <div className="max-w-xl mx-auto p-5 space-y-5">
