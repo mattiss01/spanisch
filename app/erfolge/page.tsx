@@ -60,6 +60,7 @@ export default function ErfolgePage() {
     if (!loaded || seeded.current || !profile || typeof localStorage === 'undefined') return;
     seeded.current = true;
     const bestDay = stats?.daily ? Math.max(0, ...Object.values(stats.daily)) : 0;
+    const daysActive = stats?.daily ? Object.values(stats.daily).filter(n => n > 0).length : 0;
     const ids = computeBadges({
       wordsKnown: vocab.filter(v => levelOf(v) === 5).length,
       wordsStarted: vocab.length,
@@ -69,6 +70,8 @@ export default function ErfolgePage() {
       verbsDone,
       bestDay,
       lifetimeCards: stats?.totalAnswers ?? 0,
+      correctAnswers: stats?.correctAnswers ?? 0,
+      daysActive,
       inTop5: !!race?.highscores.some(h => h.name === profile.name),
     }).filter(b => b.unlocked).map(b => b.id);
     const k = `spanisch_badges2_${profile.id}`;
@@ -95,6 +98,7 @@ export default function ErfolgePage() {
   }
 
   const bestDay = stats?.daily ? Math.max(0, ...Object.values(stats.daily)) : 0;
+  const daysActive = stats?.daily ? Object.values(stats.daily).filter(n => n > 0).length : 0;
   const badges = computeBadges({
     wordsKnown: vocab.filter(v => levelOf(v) === 5).length,
     wordsStarted: vocab.length,
@@ -104,6 +108,8 @@ export default function ErfolgePage() {
     verbsDone,
     bestDay,
     lifetimeCards: stats?.totalAnswers ?? 0,
+    correctAnswers: stats?.correctAnswers ?? 0,
+    daysActive,
     inTop5: !!race?.highscores.some(h => h.name === profile.name),
   });
   const unlocked = badges.filter(b => b.unlocked);

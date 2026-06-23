@@ -23,6 +23,8 @@ export interface BadgeInput {
   verbsDone: number;     // conjugation verbs practised
   bestDay: number;       // best single-day activity count
   lifetimeCards: number; // cumulative items practised
+  correctAnswers: number;// cumulative correct answers
+  daysActive: number;    // distinct days with any activity (last 365d)
   inTop5: boolean;       // appears in the all-time daily top-5
 }
 
@@ -41,6 +43,7 @@ function flag(category: string, id: string, icon: string, label: string, desc: s
 
 export function computeBadges(i: BadgeInput): Badge[] {
   const V = 'Vocabulary', S = 'Sentences', VB = 'Verbs', R = 'The Race', D = 'Dedication', ST = 'Streak';
+  const C = 'Consistency', P = 'Precision';
   return [
     // ── Vocabulary: words known ──
     ...tiers(V, 'known', '📚', i.wordsKnown, [
@@ -135,10 +138,38 @@ export function computeBadges(i: BadgeInput): Badge[] {
       [50000, 'Sage', 'Practise 50,000 items'],
       [100000, 'Living legend', 'Practise 100,000 items'],
     ]),
+    // Cross-cutting: practise in every mode.
+    flag(D, 'allrounder', '🧠', 'All-rounder', 'Practise vocab, sentences and verbs',
+      i.wordsStarted > 0 && i.sentencesDone > 0 && i.verbsDone > 0),
+    // ── Consistency: distinct days with activity ──
+    ...tiers(C, 'days', '📅', i.daysActive, [
+      [1, 'Day one', 'Practise on 1 day'],
+      [5, 'Showing up', 'Practise on 5 days'],
+      [10, 'Routine', 'Practise on 10 days'],
+      [25, 'Habitual', 'Practise on 25 days'],
+      [50, 'Regular', 'Practise on 50 days'],
+      [75, 'Dependable', 'Practise on 75 days'],
+      [100, 'Centennial', 'Practise on 100 days'],
+      [150, 'Steadfast', 'Practise on 150 days'],
+      [200, 'Ever-present', 'Practise on 200 days'],
+      [300, 'Almost daily', 'Practise on 300 days'],
+      [365, 'Full year', 'Practise on 365 days'],
+    ]),
+    // ── Precision: cumulative correct answers ──
+    ...tiers(P, 'correct', '🎯', i.correctAnswers, [
+      [50, 'On target', 'Answer 50 correctly'],
+      [150, 'Sharpshooter', 'Answer 150 correctly'],
+      [500, 'Marksman', 'Answer 500 correctly'],
+      [1000, 'Crack shot', 'Answer 1,000 correctly'],
+      [2500, 'Deadeye', 'Answer 2,500 correctly'],
+      [5000, 'Sniper', 'Answer 5,000 correctly'],
+      [10000, 'Bullseye', 'Answer 10,000 correctly'],
+      [25000, 'Flawless', 'Answer 25,000 correctly'],
+    ]),
   ];
 }
 
-export const BADGE_CATEGORIES = ['Vocabulary', 'Sentences', 'Verbs', 'Streak', 'The Race', 'Dedication'];
+export const BADGE_CATEGORIES = ['Vocabulary', 'Sentences', 'Verbs', 'Streak', 'Consistency', 'The Race', 'Dedication', 'Precision'];
 
 // Within each series, show every unlocked tier plus the next locked one; hide
 // further locked tiers until the previous is reached.
