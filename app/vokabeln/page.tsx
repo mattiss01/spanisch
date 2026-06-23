@@ -2,8 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadVocabStrict, upsertVocabWord, getStats, recordExercise } from '@/lib/storage';
-import { VocabEntry, ProgressStats } from '@/lib/types';
+import {
+  loadVocabStrict,
+  upsertVocabWord,
+  getStats,
+  recordExercise,
+  getRace,
+  getSentenceProgress,
+  getConjugationRecords,
+} from '@/lib/storage';
+import { VocabEntry, ProgressStats, RaceResponse } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
 import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
@@ -12,11 +20,28 @@ import { berlinToday } from '@/lib/race';
 import { PRONOUNS } from '@/lib/verb-catalog';
 import { loadExamples, VocabExample } from '@/lib/vocab-examples';
 import { Confidence, LEVEL_INTERVALS, isDue, computeNewLevel, nextReviewDate } from '@/lib/srs';
+import { computeBadges } from '@/lib/achievements';
 import StreakBanner from '@/components/StreakBanner';
+import ChallengeStrip from '@/components/ChallengeStrip';
+import Achievements from '@/components/Achievements';
+import Celebration from '@/components/Celebration';
 
 const DAILY_GOAL = 20;
 // One Learn session introduces this many new words; finish early or keep going.
 const ROUND_SIZE = 20;
+
+// Gamification milestones.
+const KNOWN_MILESTONES = [50, 100, 250, 500, 1000];
+const STREAK_MILESTONES = [7, 30, 100];
+const COMBO_MILESTONES = [5, 10, 15, 25];
+
+// Highest value among prior days (excludes today's key) in the daily counter.
+function bestPriorDay(daily: Record<string, number> | undefined, todayKey: string): number {
+  if (!daily) return 0;
+  let best = 0;
+  for (const [d, n] of Object.entries(daily)) if (d !== todayKey && n > best) best = n;
+  return best;
+}
 
 type Tab = 'lernen' | 'wiederholen' | 'words';
 type Phase = 'idle' | 'active' | 'done';
@@ -158,6 +183,53 @@ export default function VokabelnPage() {
   const [examples, setExamples] = useState<Map<string, VocabExample>>(new Map());
   useEffect(() => { loadExamples().then(setExamples); }, []);
 
+  // Gamification: race standings + cross-section counts (tolerant; never block).
+  const [race, setRace] = useState<RaceResponse | null>(null);
+  const [sentencesDone, setSentencesDone] = useState(0);
+  const [verbsDone, setVerbsDone] = useState(0);
+  useEffect(() => {
+    getRace().then(setRace).catch(() => {});
+    getSentenceProgress().then(r => setSentencesDone(r.length)).catch(() => {});
+    getConjugationRecords().then(r => setVerbsDone(r.length)).catch(() => {});
+  }, []);
+
+  // In-session combo + celebration toast.
+  const [combo, setCombo] = useState(0);
+  const [celebration, setCelebration] = useState<string | null>(null);
+  const celebrate = useCallback((msg: string) => setCelebration(msg), []);
+  const streakSeen = useRef<number | null>(null);
+
+  // Badge "newly unlocked" tracking (acknowledged ids persisted per profile).
+  const [newBadgeIds, setNewBadgeIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!profile || typeof localStorage === 'undefined') return;
+    const k = `spanisch_badges_${profile.id}`;
+    const wordsKnown = vocab.filter(v => getLevel(v) === 5).length;
+    const inTop5 = !!race?.highscores.some(h => h.name === profile.name);
+    const unlocked = computeBadges({
+      wordsKnown,
+      streak: stats?.streak ?? 0,
+      stars: race?.stars?.[profile.id] ?? 0,
+      sentencesDone,
+      verbsDone,
+      inTop5,
+    }).filter(b => b.unlocked).map(b => b.id);
+
+    const raw = localStorage.getItem(k);
+    if (raw === null) {
+      // First run on this device: acknowledge everything silently (no spam).
+      localStorage.setItem(k, JSON.stringify(unlocked));
+      return;
+    }
+    const ackedSet = new Set(JSON.parse(raw) as string[]);
+    const fresh = unlocked.filter(id => !ackedSet.has(id));
+    if (fresh.length > 0) {
+      localStorage.setItem(k, JSON.stringify(unlocked));
+      setNewBadgeIds(new Set(fresh));
+      celebrate('Achievement unlocked! 🏆');
+    }
+  }, [profile, vocab, stats, race, sentencesDone, verbsDone, celebrate]);
+
   // Add-your-own-word form state
   const [showAddForm, setShowAddForm] = useState(false);
   const [addNative, setAddNative] = useState('');
@@ -180,13 +252,21 @@ export default function VokabelnPage() {
       // so a later write can't overwrite real data with an empty list.
       setLoadError(true);
     }
-    setStats(await getStats());
+    const s = await getStats();
+    streakSeen.current = s?.streak ?? 0; // seed without celebrating on load
+    setStats(s);
   }, []);
   // Stats-only reconcile — used after a session so we never overwrite the
   // optimistic vocab state (which already matches what we wrote to the server).
   const refreshStats = useCallback(async () => {
-    setStats(await getStats());
-  }, []);
+    const s = await getStats();
+    if (s && streakSeen.current !== null) {
+      const hit = STREAK_MILESTONES.find(m => streakSeen.current! < m && s.streak >= m);
+      if (hit) celebrate(`${hit}-day streak! 🔥`);
+    }
+    if (s) streakSeen.current = s.streak;
+    setStats(s);
+  }, [celebrate]);
   useEffect(() => { refresh(); }, [refresh]);
 
   if (!ready || !profile) {
@@ -220,6 +300,21 @@ export default function VokabelnPage() {
   // If there's activity today, the streak is at least 1 even if stats lag behind.
   const displayStreak = Math.max(stats?.streak ?? 0, todayCount > 0 ? 1 : 0);
 
+  // Gamification derived values.
+  const yesterdayCount = stats?.daily?.[berlinToday(new Date(Date.now() - 86400000))] ?? 0;
+  const personalBest = bestPriorDay(stats?.daily, berlinToday());
+  const top5Threshold = race?.highscores[4]?.count ?? null;
+  const myRankIdx = race ? [...race.racers].sort((a, b) => b.todayCount - a.todayCount).findIndex(r => r.id === profile.id) : -1;
+  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+  const badges = computeBadges({
+    wordsKnown: bekanntWords.length,
+    streak: stats?.streak ?? 0,
+    stars: race?.stars?.[profile.id] ?? 0,
+    sentencesDone,
+    verbsDone,
+    inTop5: !!race?.highscores.some(h => h.name === profile.name),
+  });
+
   function makeItem(
     de: string,
     es: string,
@@ -241,6 +336,7 @@ export default function VokabelnPage() {
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
+    setCombo(0);
   }
 
   function switchTab(t: Tab) {
@@ -290,6 +386,7 @@ export default function VokabelnPage() {
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
+    setCombo(0);
     setPhase('active');
   }
 
@@ -306,6 +403,7 @@ export default function VokabelnPage() {
     setCurrent(0);
     setDoneCount(0);
     setSessionCorrect(0);
+    setCombo(0);
     setPhase('active');
   }
 
@@ -367,6 +465,24 @@ export default function VokabelnPage() {
     });
     setDoneCount(d => d + 1);
     if (correct) setSessionCorrect(c => c + 1);
+
+    // ── Gamification: combo + milestone celebrations ──
+    if (correct) {
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      const cm = COMBO_MILESTONES.find(m => combo < m && newCombo >= m);
+      if (cm) celebrate(`${cm} in a row! 🔥`);
+    } else {
+      setCombo(0);
+    }
+    const newToday = todayCount + 1;
+    if (todayCount < DAILY_GOAL && newToday >= DAILY_GOAL) celebrate('Daily goal reached! 🎉');
+    const prevBest = bestPriorDay(stats?.daily, berlinToday());
+    if (prevBest > 0 && newToday === prevBest + 1) celebrate('New personal best! 🎉');
+    if (newLevel === 5 && item.currentLevel < 5) {
+      const newKnown = bekanntWords.length + 1;
+      if (KNOWN_MILESTONES.includes(newKnown)) celebrate(`${newKnown} words known! 📚`);
+    }
 
     if (isLast) setPhase('done');
     else setCurrent(c => c + 1);
@@ -591,6 +707,7 @@ export default function VokabelnPage() {
         answerPlaceholder={answerLang}
         position={current + 1}
         total={items.length}
+        combo={combo}
         onRate={handleRate}
         onFinish={() => { setPhase('done'); drainAndRefresh(); }}
       />
@@ -664,6 +781,14 @@ export default function VokabelnPage() {
         )}
 
         <StreakBanner streak={displayStreak} todayCount={todayCount} goal={DAILY_GOAL} />
+
+        <ChallengeStrip
+          todayCount={todayCount}
+          top5Threshold={top5Threshold}
+          personalBest={personalBest}
+          rank={myRank}
+          yesterday={yesterdayCount}
+        />
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
@@ -874,7 +999,11 @@ export default function VokabelnPage() {
             )}
           </div>
         )}
+
+        <Achievements badges={badges} newIds={newBadgeIds} />
       </div>
+
+      <Celebration message={celebration} onDone={() => setCelebration(null)} />
     </main>
   );
 }
@@ -886,6 +1015,7 @@ function Flashcard({
   answerPlaceholder,
   position,
   total,
+  combo,
   onRate,
   onFinish,
 }: {
@@ -893,6 +1023,7 @@ function Flashcard({
   answerPlaceholder: string;
   position: number;
   total: number;
+  combo: number;
   onRate: (correct: boolean, conf: Confidence) => void | Promise<void>;
   onFinish: () => void;
 }) {
@@ -935,9 +1066,16 @@ function Flashcard({
             {LEVEL_LABELS[item.currentLevel]}
           </span>
         </div>
-        <button onClick={onFinish} className="hover:text-gray-600 transition-colors">
-          Finish
-        </button>
+        <div className="flex items-center gap-2">
+          {combo >= 2 && (
+            <span className="px-1.5 py-0.5 rounded-md font-semibold bg-orange-100 text-orange-700">
+              🔥 {combo} in a row
+            </span>
+          )}
+          <button onClick={onFinish} className="hover:text-gray-600 transition-colors">
+            Finish
+          </button>
+        </div>
       </div>
       <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
         <div
