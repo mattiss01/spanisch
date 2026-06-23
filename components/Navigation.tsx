@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useProfile } from '@/lib/use-profile';
@@ -25,6 +26,7 @@ export default function Navigation() {
   const { profile } = useProfile();
   const stars = useStars();
   const myStars = profile ? formatStars(stars[profile.id] ?? 0) : '';
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const flag = profile?.direction === 'es_to_de' ? '🇩🇪' : '🇪🇸';
   const subtitle = profile?.direction === 'es_to_de' ? 'Spanish → German' : 'German → Spanish';
@@ -34,6 +36,22 @@ export default function Navigation() {
       (!('onlyDirection' in n) || n.onlyDirection === profile?.direction) &&
       (!('onlyLevel' in n) || n.onlyLevel === profile?.level)
   );
+
+  // Mobile: keep the core practice/engagement tabs visible; tuck the rest behind "More".
+  const primary = items.slice(0, 4);
+  const overflow = items.slice(4);
+  const moreActive =
+    overflow.some(o => path.startsWith(o.href)) || path.startsWith('/profile');
+
+  // Close the "More" sheet on Escape.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [moreOpen]);
 
   return (
     <>
@@ -79,14 +97,56 @@ export default function Navigation() {
         </div>
       </aside>
 
+      {/* ── Mobile "More" sheet ── */}
+      {moreOpen && (
+        <>
+          <div
+            className="md:hidden fixed inset-0 z-40 bg-black/30"
+            onClick={() => setMoreOpen(false)}
+          />
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl border-t border-gray-100 shadow-2xl safe-area-inset-bottom">
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-gray-200" />
+            <div className="p-2 pb-3">
+              {overflow.map(({ href, label, icon }) => {
+                const active = path.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-lg">{icon}</span>
+                    {label}
+                  </Link>
+                );
+              })}
+              <Link
+                href="/profile"
+                onClick={() => setMoreOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  path.startsWith('/profile') ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-lg">👤</span>
+                {profile ? profile.name + myStars : 'Profile'}
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── Mobile bottom bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 flex safe-area-inset-bottom">
-        {items.map(({ href, label, icon }) => {
+        {primary.map(({ href, label, icon }) => {
           const active = path.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
+              onClick={() => setMoreOpen(false)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium transition-colors ${
                 active ? 'text-red-700' : 'text-gray-400'
               }`}
@@ -96,13 +156,16 @@ export default function Navigation() {
             </Link>
           );
         })}
-        <Link
-          href="/profile"
-          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-400"
+        <button
+          type="button"
+          onClick={() => setMoreOpen(o => !o)}
+          className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium transition-colors ${
+            moreActive || moreOpen ? 'text-red-700' : 'text-gray-400'
+          }`}
         >
-          <span className="text-xl">👤</span>
-          {profile ? profile.name + myStars : 'Profile'}
-        </Link>
+          <span className="text-xl">☰</span>
+          More
+        </button>
       </nav>
     </>
   );
