@@ -81,14 +81,28 @@ function entryToRow(userId: string, e: VocabEntry): Omit<VocabRow, 'id'> & { id?
 
 // ─── vocab (per-row) ───────────────────────────────────────────────────────────
 
+const VOCAB_PAGE = 1000; // Supabase default max rows per request
+
 export async function getVocab(userId: string): Promise<VocabEntry[]> {
-  const { data, error } = await db()
-    .from('vocab')
-    .select('*')
-    .eq('user_id', userId)
-    .order('added_at', { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data as VocabRow[]).map(rowToEntry);
+  const all: VocabEntry[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await db()
+      .from('vocab')
+      .select('*')
+      .eq('user_id', userId)
+      .order('added_at', { ascending: true })
+      .range(from, from + VOCAB_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const page = data as VocabRow[];
+    if (!page.length) break;
+    all.push(...page.map(rowToEntry));
+    if (page.length < VOCAB_PAGE) break;
+    from += VOCAB_PAGE;
+  }
+
+  return all;
 }
 
 export async function upsertVocabWord(userId: string, entry: VocabEntry): Promise<void> {
