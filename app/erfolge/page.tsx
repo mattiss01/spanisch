@@ -15,9 +15,11 @@ import { useProfile } from '@/lib/use-profile';
 import Achievements from '@/components/Achievements';
 import Celebration from '@/components/Celebration';
 
+import { effectiveVocabLevel, VOCAB_KNOWN_LEVEL } from '@/lib/srs';
+
 function levelOf(v: VocabEntry): number {
-  if (v.level !== undefined) return v.level;
-  return v.status === 'bekannt' ? 5 : 1;
+  const raw = v.level !== undefined ? v.level : (v.status === 'bekannt' ? VOCAB_KNOWN_LEVEL : 1);
+  return effectiveVocabLevel(raw, v.nextReview);
 }
 
 export default function ErfolgePage() {
@@ -62,7 +64,7 @@ export default function ErfolgePage() {
     const bestDay = stats?.daily ? Math.max(0, ...Object.values(stats.daily)) : 0;
     const daysActive = stats?.daily ? Object.values(stats.daily).filter(n => n > 0).length : 0;
     const ids = computeBadges({
-      wordsKnown: vocab.filter(v => levelOf(v) === 5).length,
+      wordsKnown: vocab.filter(v => levelOf(v) >= VOCAB_KNOWN_LEVEL).length,
       wordsStarted: vocab.length,
       streak: stats?.streak ?? 0,
       stars: race?.stars?.[profile.id] ?? 0,
@@ -100,7 +102,7 @@ export default function ErfolgePage() {
   const bestDay = stats?.daily ? Math.max(0, ...Object.values(stats.daily)) : 0;
   const daysActive = stats?.daily ? Object.values(stats.daily).filter(n => n > 0).length : 0;
   const badges = computeBadges({
-    wordsKnown: vocab.filter(v => levelOf(v) === 5).length,
+    wordsKnown: vocab.filter(v => levelOf(v) >= VOCAB_KNOWN_LEVEL).length,
     wordsStarted: vocab.length,
     streak: stats?.streak ?? 0,
     stars: race?.stars?.[profile.id] ?? 0,

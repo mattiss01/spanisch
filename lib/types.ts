@@ -163,7 +163,7 @@ export interface VocabEntry {
   reviewCount: number;
   lastReviewed?: string;
   status?: VocabStatus; // legacy — still read for migration, new writes use level/nextReview
-  level?: number;       // 0 = new (unused in DB), 1–4 = learning, 5 = bekannt
+  level?: number;       // 0 = new (unused in DB), 1–5 = learning, 6 = known (legacy: 5 w/o review = known)
   nextReview?: string;  // ISO date; when past (or absent) the word is due for review
 }
 

@@ -15,7 +15,7 @@ export interface Badge {
 }
 
 export interface BadgeInput {
-  wordsKnown: number;    // vocab at level 5
+  wordsKnown: number;    // vocab at Known level (6; legacy level 5 w/o review counts too)
   wordsStarted: number;  // vocab entries in the list
   streak: number;
   stars: number;         // months won in THE RACE

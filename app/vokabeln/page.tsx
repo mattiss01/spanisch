@@ -17,7 +17,15 @@ import { isBeginner } from '@/lib/profiles';
 import { berlinToday } from '@/lib/race';
 import { PRONOUNS } from '@/lib/verb-catalog';
 import { loadExamples, VocabExample } from '@/lib/vocab-examples';
-import { Confidence, LEVEL_INTERVALS, isDue, computeNewLevel, nextReviewDate } from '@/lib/srs';
+import {
+  Confidence,
+  VOCAB_KNOWN_LEVEL,
+  VOCAB_INTERVALS,
+  effectiveVocabLevel,
+  isDue,
+  computeNewLevel,
+  nextReviewDate,
+} from '@/lib/srs';
 import StreakBanner from '@/components/StreakBanner';
 import ChallengeStrip from '@/components/ChallengeStrip';
 import Celebration from '@/components/Celebration';
@@ -58,19 +66,20 @@ interface SessionItem {
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
 
-const LEVEL_LABELS = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Known'];
+const LEVEL_LABELS = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Known'];
 const LEVEL_COLORS = [
   '',
   'bg-red-100 text-red-700',
   'bg-orange-100 text-orange-700',
   'bg-amber-100 text-amber-700',
   'bg-blue-100 text-blue-700',
+  'bg-indigo-100 text-indigo-700',
   'bg-green-100 text-green-700',
 ];
 
 function getLevel(v: VocabEntry): number {
-  if (v.level !== undefined) return v.level;
-  return v.status === 'bekannt' ? 5 : 1;
+  const raw = v.level !== undefined ? v.level : (v.status === 'bekannt' ? VOCAB_KNOWN_LEVEL : 1);
+  return effectiveVocabLevel(raw, v.nextReview);
 }
 
 // ─── Answer checking ─────────────────────────────────────────────────────────
@@ -168,7 +177,7 @@ export default function VokabelnPage() {
   const [wordSortDir, setWordSortDir] = useState<'asc' | 'desc'>('asc');
   const [wordGroup, setWordGroup] = useState<WordGroup>('none');
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(
-    new Set(['phase:5', 'due:none']), // Known / no-review collapsed by default
+    new Set(['phase:6', 'due:none']), // Known / no-review collapsed by default
   );
 
   // Flashcard session state (one word at a time)
@@ -254,9 +263,15 @@ export default function VokabelnPage() {
     ? [...STARTER_VOCAB, ...VOCAB_CATALOG.filter(w => !starterEs.has(norm(w.es)))]
     : VOCAB_CATALOG;
 
-  const bekanntWords = vocab.filter(v => getLevel(v) === 5);
-  const dueToday = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && isDue(v.nextReview); });
-  const upcoming = vocab.filter(v => { const l = getLevel(v); return l > 0 && l < 5 && !isDue(v.nextReview); });
+  const bekanntWords = vocab.filter(v => getLevel(v) >= VOCAB_KNOWN_LEVEL);
+  const dueToday = vocab.filter(v => {
+    const l = getLevel(v);
+    return l > 0 && l < VOCAB_KNOWN_LEVEL && isDue(v.nextReview);
+  });
+  const upcoming = vocab.filter(v => {
+    const l = getLevel(v);
+    return l > 0 && l < VOCAB_KNOWN_LEVEL && !isDue(v.nextReview);
+  });
 
   const seenWords = new Set(vocab.map(v => norm(v.word)));
   const unseenCount = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).length;
@@ -324,12 +339,12 @@ export default function VokabelnPage() {
   // Manually move a word to a different phase from the Words list.
   function setWordLevel(entry: VocabEntry, newLevel: number) {
     if (!vocabLoaded) { setSaveError(true); return; }
-    const clamped = Math.max(1, Math.min(5, newLevel));
+    const clamped = Math.max(1, Math.min(VOCAB_KNOWN_LEVEL, newLevel));
     if (clamped === getLevel(entry)) return;
     let nr = '';
-    if (clamped < 5) {
+    if (clamped < VOCAB_KNOWN_LEVEL) {
       const d = new Date();
-      d.setDate(d.getDate() + (LEVEL_INTERVALS[clamped] ?? 14));
+      d.setDate(d.getDate() + (VOCAB_INTERVALS[clamped] ?? 14));
       nr = d.toISOString();
     }
     const changed = { ...entry, level: clamped, nextReview: nr };
@@ -381,8 +396,11 @@ export default function VokabelnPage() {
     if (!vocabLoaded) { setSaveError(true); return; }
     const item = items[current];
     const isLearn = tab === 'lernen';
-    const newLevel = computeNewLevel(item.currentLevel, correct, conf);
-    const nr = nextReviewDate(newLevel, correct, conf);
+    const newLevel = computeNewLevel(item.currentLevel, correct, conf, VOCAB_KNOWN_LEVEL);
+    const nr = nextReviewDate(newLevel, correct, conf, {
+      knownLevel: VOCAB_KNOWN_LEVEL,
+      intervals: VOCAB_INTERVALS,
+    });
     const now = new Date().toISOString();
     const isLast = current + 1 >= items.length;
 
@@ -442,7 +460,7 @@ export default function VokabelnPage() {
     if (todayCount < DAILY_GOAL && newToday >= DAILY_GOAL) celebrate('Daily goal reached! 🎉');
     const prevBest = bestPriorDay(stats?.daily, berlinToday());
     if (prevBest > 0 && newToday === prevBest + 1) celebrate('New personal best! 🎉');
-    if (newLevel === 5 && item.currentLevel < 5) {
+    if (newLevel === VOCAB_KNOWN_LEVEL && item.currentLevel < VOCAB_KNOWN_LEVEL) {
       const newKnown = bekanntWords.length + 1;
       if (KNOWN_MILESTONES.includes(newKnown)) celebrate(`${newKnown} words known! 📚`);
     }
@@ -518,7 +536,7 @@ export default function VokabelnPage() {
   type WordSection = { key: string; label: string; badgeClass: string; entries: VocabEntry[] };
   let wordSections: WordSection[] = [];
   if (wordGroup === 'phase') {
-    wordSections = [1, 2, 3, 4, 5]
+    wordSections = [1, 2, 3, 4, 5, 6]
       .map(level => ({
         key: `phase:${level}`,
         label: LEVEL_LABELS[level],
@@ -530,7 +548,7 @@ export default function VokabelnPage() {
     const buckets = new Map<string, { sortKey: string; label: string; entries: VocabEntry[] }>();
     for (const w of wordsFiltered) {
       let key: string, sortKey: string, label: string;
-      if (getLevel(w) >= 5 || !w.nextReview) {
+      if (getLevel(w) >= VOCAB_KNOWN_LEVEL || !w.nextReview) {
         key = 'due:none'; sortKey = '￿'; label = 'No review';
       } else {
         let day = berlinToday(new Date(w.nextReview));
@@ -580,7 +598,7 @@ export default function VokabelnPage() {
           <p className="text-gray-500 text-sm">
             {direction === 'es_to_de' ? entry.word : entry.translation}
           </p>
-          {level < 5 && reviewDate && (
+          {level < VOCAB_KNOWN_LEVEL && reviewDate && (
             <p className="text-gray-400 text-xs mt-0.5">
               Next review: {reviewDate}
             </p>
@@ -592,7 +610,7 @@ export default function VokabelnPage() {
         <div className="flex flex-col gap-1 shrink-0">
           <button
             onClick={() => setWordLevel(entry, level + 1)}
-            disabled={level >= 5}
+            disabled={level >= VOCAB_KNOWN_LEVEL}
             title="Move up a phase"
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-500 transition-colors"
           >
