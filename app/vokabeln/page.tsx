@@ -84,6 +84,14 @@ function norm(s: string): string {
     .trim();
 }
 
+// Grading only: catalog phrases often include .?! ¡¿ … — ignore them when comparing.
+function answerNorm(s: string): string {
+  return norm(s)
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
@@ -120,14 +128,14 @@ function splitVariants(s: string): string[] {
 }
 
 function checkAnswer(user: string, correct: string): { correct: boolean; accentHint?: string } {
-  const u = norm(user);
+  const u = answerNorm(user);
   if (u.length === 0) return { correct: false };
 
   const variants = splitVariants(correct);
 
   // Exact match against any variant (articles/parentheticals already stripped by norm)
   for (const variant of variants) {
-    const c = norm(variant);
+    const c = answerNorm(variant);
     if (c.length === 0) continue;
     if (u === c) return { correct: true };
   }
@@ -136,7 +144,7 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
   const su = stripAccents(u);
   const fu = germanFold(u);
   for (const variant of variants) {
-    const c = norm(variant);
+    const c = answerNorm(variant);
     if (c.length === 0) continue;
     if (stripAccents(c) === su || germanFold(c) === fu) {
       return { correct: true, accentHint: variant };
