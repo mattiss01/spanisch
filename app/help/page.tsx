@@ -41,7 +41,7 @@ export default function HelpPage() {
           <div className="space-y-2 pt-1">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">After checking answers</h3>
             <div className="space-y-1.5 text-sm text-gray-600">
-              <p><span className="font-semibold text-amber-700">Unsure</span> — you got it right but weren&apos;t confident. Review again tomorrow.</p>
+              <p><span className="font-semibold text-amber-700">Unsure</span> — you got it right but weren&apos;t confident. Stay in the current phase and review again after its interval.</p>
               <p><span className="font-semibold text-green-700">Sure</span> — confident. Move to the next phase.</p>
               <p><span className="font-semibold text-green-800">Known ✓</span> — you know it perfectly. Skip directly to Known.</p>
             </div>

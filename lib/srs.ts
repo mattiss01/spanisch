@@ -78,12 +78,6 @@ export function nextReviewDate(
   // "Again" (restart) or wrong: due now → shows in Review today.
   if (conf === 'again' || !correct) return new Date().toISOString();
   if (newLevel >= knownLevel) return '';
-  // "Hard" / "Keep phase": review tomorrow.
-  if (conf === 'unsicher') {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString();
-  }
   const days = intervals[newLevel] ?? 14;
   const d = new Date();
   d.setDate(d.getDate() + days);
