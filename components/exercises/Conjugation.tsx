@@ -28,6 +28,9 @@ export default function Conjugation({ exercise, onComplete }: Props) {
   const [retypes, setRetypes] = useState<string[][]>(
     exercise.sections.map(s => s.pronouns.map(() => ''))
   );
+  const [typoForgiven, setTypoForgiven] = useState<boolean[][]>(
+    exercise.sections.map(s => s.pronouns.map(() => false))
+  );
 
   const results: boolean[][] = checked
     ? exercise.sections.map((s, si) =>
@@ -35,9 +38,23 @@ export default function Conjugation({ exercise, onComplete }: Props) {
       )
     : exercise.sections.map(s => s.pronouns.map(() => false));
 
-  const totalCorrect = results.flat().filter(Boolean).length;
+  const effectiveResults: boolean[][] = checked
+    ? exercise.sections.map((s, si) =>
+        s.pronouns.map((_, pi) => results[si][pi] || typoForgiven[si][pi])
+      )
+    : exercise.sections.map(s => s.pronouns.map(() => false));
+
+  const totalCorrect = effectiveResults.flat().filter(Boolean).length;
   const totalQuestions = exercise.sections.reduce((sum, s) => sum + s.pronouns.length, 0);
-  const perfectSections = checked ? results.filter(r => r.every(Boolean)).length : 0;
+  const perfectSections = checked ? effectiveResults.filter(r => r.every(Boolean)).length : 0;
+
+  function retypeOk(si: number, pi: number): boolean {
+    return answersMatch(retypes[si][pi], exercise.sections[si].answers[pi]);
+  }
+
+  const allWrongHandled = checked && exercise.sections.every((s, si) =>
+    s.pronouns.every((_, pi) => results[si][pi] || retypeOk(si, pi) || typoForgiven[si][pi])
+  );
 
   function setAnswer(si: number, pi: number, value: string) {
     setAnswers(prev => {
@@ -55,8 +72,19 @@ export default function Conjugation({ exercise, onComplete }: Props) {
     });
   }
 
-  async function check() {
+  function forgiveTypo(si: number, pi: number) {
+    setTypoForgiven(prev => {
+      const next = prev.map(row => [...row]);
+      next[si][pi] = true;
+      return next;
+    });
+  }
+
+  function check() {
     setChecked(true);
+  }
+
+  async function saveAndContinue() {
     await upsertConjugationAttempt(
       exercise.verb,
       exercise.sections.map((s, si) => ({
@@ -64,7 +92,9 @@ export default function Conjugation({ exercise, onComplete }: Props) {
         tenseName_de: s.tenseName_de,
         pronouns: s.pronouns,
         correctAnswers: s.answers,
-        userAnswers: answers[si],
+        userAnswers: s.pronouns.map((_, pi) =>
+          typoForgiven[si][pi] && !results[si][pi] ? s.answers[pi] : answers[si][pi]
+        ),
       }))
     );
     onComplete?.(totalCorrect, totalQuestions);
@@ -73,6 +103,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
   function reset() {
     setAnswers(exercise.sections.map(s => s.pronouns.map(() => '')));
     setRetypes(exercise.sections.map(s => s.pronouns.map(() => '')));
+    setTypoForgiven(exercise.sections.map(s => s.pronouns.map(() => false)));
     setChecked(false);
   }
 
@@ -95,7 +126,7 @@ export default function Conjugation({ exercise, onComplete }: Props) {
       {/* Tense sections */}
       <div className="space-y-4">
         {exercise.sections.map((section, si) => {
-          const sectionResults = checked ? results[si] : [];
+          const sectionResults = checked ? effectiveResults[si] : [];
           const sectionCorrect = sectionResults.filter(Boolean).length;
           const sectionPerfect = checked && sectionResults.every(Boolean);
           const sectionWrong = checked && !sectionPerfect;
@@ -140,15 +171,16 @@ export default function Conjugation({ exercise, onComplete }: Props) {
               {/* Pronoun rows */}
               <div className="bg-white divide-y divide-gray-100">
                 {section.pronouns.map((pronoun, pi) => {
-                  const isCorrect = checked && results[si][pi];
-                  const isWrong = checked && !results[si][pi];
+                  const isCorrect = checked && effectiveResults[si][pi];
+                  const isWrong = checked && !results[si][pi] && !typoForgiven[si][pi];
+                  const isTypo = checked && typoForgiven[si][pi] && !results[si][pi];
                   const target = section.answers[pi];
-                  const retypeOk = isWrong && answersMatch(retypes[si][pi], target);
+                  const retyped = retypeOk(si, pi);
                   return (
                     <div
                       key={pi}
                       className={`px-4 py-2 ${
-                        isCorrect ? 'bg-green-50' : isWrong ? 'bg-red-50' : ''
+                        isCorrect ? 'bg-green-50' : isTypo ? 'bg-amber-50' : isWrong ? 'bg-red-50' : ''
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -172,13 +204,16 @@ export default function Conjugation({ exercise, onComplete }: Props) {
                           id={`inp-${si}-${pi}`}
                           placeholder="..."
                           className={`flex-1 border-b bg-transparent text-sm transition-colors disabled:opacity-100 ${
-                            isCorrect
+                            isCorrect || isTypo
                               ? 'border-green-400 text-green-700'
                               : isWrong
                               ? 'border-red-400 text-red-600'
                               : 'border-gray-300 focus:border-red-600 text-gray-900'
                           }`}
                         />
+                        {isTypo && (
+                          <span className="text-xs text-amber-700 font-medium shrink-0">typo</span>
+                        )}
                         {isWrong && (
                           <span className="text-sm text-green-700 font-semibold shrink-0">
                             {target}
@@ -195,12 +230,20 @@ export default function Conjugation({ exercise, onComplete }: Props) {
                             onChange={e => setRetype(si, pi, e.target.value)}
                             placeholder={target}
                             className={`flex-1 min-w-0 border-b bg-transparent text-sm py-0.5 outline-none transition-colors ${
-                              retypeOk
+                              retyped
                                 ? 'border-green-500 text-green-700'
                                 : 'border-amber-400 text-amber-700 focus:border-amber-600'
                             }`}
                           />
-                          {retypeOk && <span className="text-green-600 text-sm shrink-0">✓</span>}
+                          {retyped && <span className="text-green-600 text-sm shrink-0">✓</span>}
+                          <button
+                            type="button"
+                            onClick={() => forgiveTypo(si, pi)}
+                            disabled={!retyped}
+                            className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-40 transition-colors"
+                          >
+                            Typo
+                          </button>
                         </div>
                       )}
                     </div>
@@ -242,6 +285,18 @@ export default function Conjugation({ exercise, onComplete }: Props) {
             {totalCorrect}/{totalQuestions} forms correct
             {totalCorrect === totalQuestions && ' 🎉'}
           </div>
+          {!allWrongHandled && results.some(row => row.some(ok => !ok)) && (
+            <p className="text-xs text-gray-500 text-center">
+              Rewrite each wrong form, then tap <strong>Typo</strong> if it was a mistake — or retype correctly.
+            </p>
+          )}
+          <button
+            onClick={saveAndContinue}
+            disabled={!allWrongHandled}
+            className="w-full py-3 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-medium transition-colors"
+          >
+            Continue
+          </button>
           <button
             onClick={reset}
             className="w-full py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm transition-colors"
