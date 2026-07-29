@@ -3,10 +3,16 @@ import {
   dbConfigured,
   getRaceState,
   setRaceState,
-  getDailyActionCounts,
-  getAllDailyMaps,
+  getAllRaceStats,
 } from '@/lib/db';
-import { berlinDayStart, berlinMonth, awardPoints, monthlyTotals, settleStars } from '@/lib/race';
+import {
+  berlinDayStart,
+  berlinMonth,
+  activeLearningStreak,
+  awardPoints,
+  monthlyTotals,
+  settleStars,
+} from '@/lib/race';
 import { PROFILES } from '@/lib/profiles';
 import { RaceResponse, RaceHighscore, RaceHistory } from '@/lib/types';
 
@@ -67,7 +73,8 @@ export async function GET() {
     persisted: RaceHighscore[] = [],
     stars: Record<string, number> = {},
     history: RaceHistory = EMPTY_HISTORY,
-    dailyMaps: Record<string, Record<string, number>> = {}
+    dailyMaps: Record<string, Record<string, number>> = {},
+    profileStats: Record<string, { streak: number; lastActivity: string }> = {}
   ): RaceResponse {
     const todayPoints = awardPoints(live);
     const racers = PROFILES.map(p => ({
@@ -77,6 +84,11 @@ export async function GET() {
       todayCount: live[p.id] ?? 0,
       todayPoints: todayPoints[p.id] ?? 0,
       stars: stars[p.id] ?? 0,
+      streak: activeLearningStreak(
+        profileStats[p.id]?.streak ?? 0,
+        profileStats[p.id]?.lastActivity ?? '',
+        today
+      ),
     })).sort((a, b) => b.points - a.points || b.todayCount - a.todayCount);
 
     // Top-5 single-day records: persisted (settled) plus today's live as a
@@ -116,18 +128,20 @@ export async function GET() {
   }
 
   try {
-    const [state, actions, dailyMaps] = await Promise.all([
+    const [state, profileStats] = await Promise.all([
       getRaceState(),
-      getDailyActionCounts(today),
-      getAllDailyMaps(),
+      getAllRaceStats(),
     ]);
+    const dailyMaps = Object.fromEntries(
+      Object.entries(profileStats).map(([id, stats]) => [id, stats.daily])
+    );
 
     // Daily activity per profile = every flashcard and every conjugated form done
     // today (repeats included), tallied in the per-day stats counter.
     const ids = new Set(PROFILES.map(p => p.id));
     const liveTracked: Record<string, number> = {};
     for (const id of ids) {
-      const total = actions[id] ?? 0;
+      const total = profileStats[id]?.daily[today] ?? 0;
       if (total > 0) liveTracked[id] = total;
     }
 
@@ -166,7 +180,15 @@ export async function GET() {
     const monthPoints = totals[currentMonth] ?? {};
     const history = buildHistory(dailyMaps, liveTracked);
     return NextResponse.json(
-      buildResponse(monthPoints, liveTracked, state.highscores, state.stars, history, dailyMaps)
+      buildResponse(
+        monthPoints,
+        liveTracked,
+        state.highscores,
+        state.stars,
+        history,
+        dailyMaps,
+        profileStats
+      )
     );
   } catch {
     // Never break the page on a transient DB error — show a zeroed board.

@@ -288,6 +288,7 @@ export interface RaceRacer {
   todayCount: number;   // distinct words practiced today
   todayPoints: number;  // points they'd earn if the day ended now
   stars: number;        // months won (accumulated)
+  streak: number;       // active learning streak; 0 when inactive
 }
 
 // Cumulative daily-activity history for the "Progress over time" chart. `dates`

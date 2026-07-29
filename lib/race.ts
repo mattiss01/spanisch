@@ -41,6 +41,25 @@ export function berlinMonth(now: Date = new Date()): string {
   return berlinDayStart(now).date.slice(0, 7);
 }
 
+// A stored learning streak is active through the Berlin day after its most
+// recent activity. Older values are only reset on the next exercise write, so
+// normalize them before showing them in global standings.
+export function activeLearningStreak(
+  streak: number,
+  lastActivity: string,
+  today: string = berlinToday()
+): number {
+  if (!Number.isFinite(streak) || streak <= 0 || !lastActivity) return 0;
+
+  const lastActivityDate = new Date(lastActivity);
+  const todayTime = Date.parse(`${today}T00:00:00Z`);
+  if (Number.isNaN(lastActivityDate.getTime()) || Number.isNaN(todayTime)) return 0;
+
+  const activityDay = berlinToday(lastActivityDate);
+  const yesterday = new Date(todayTime - 86400000).toISOString().slice(0, 10);
+  return activityDay === today || activityDay === yesterday ? Math.floor(streak) : 0;
+}
+
 // Sum each calendar month's points from per-user daily activity maps
 // (userId -> 'YYYY-MM-DD' -> count). Each day is scored with awardPoints (the 5·4·3·2·1
 // tiers, ties split) and summed into its month. `today` is excluded — it isn't locked yet

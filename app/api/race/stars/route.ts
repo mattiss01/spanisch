@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbConfigured, getRaceState, setRaceState, getAllDailyMaps } from '@/lib/db';
+import { dbConfigured, getRaceState, setRaceState, getAllRaceStats } from '@/lib/db';
 import { berlinToday, berlinMonth, monthlyTotals, settleStars } from '@/lib/race';
 
 // Lightweight endpoint for app-wide ⭐ display (nav header, profile switcher) so those
@@ -12,7 +12,10 @@ export async function GET() {
   }
 
   try {
-    const [state, dailyMaps] = await Promise.all([getRaceState(), getAllDailyMaps()]);
+    const [state, profileStats] = await Promise.all([getRaceState(), getAllRaceStats()]);
+    const dailyMaps = Object.fromEntries(
+      Object.entries(profileStats).map(([id, stats]) => [id, stats.daily])
+    );
     const totals = monthlyTotals(dailyMaps, berlinToday());
     const changed = settleStars(state, totals, month);
     if (changed) await setRaceState(state);

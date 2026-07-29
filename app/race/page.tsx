@@ -246,12 +246,22 @@ export default function RacePage() {
               const leader = i === 0 && r.points > 0;
               return (
                 <div key={r.id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-1.5 min-w-0">
                       {leader && <span title="Leader">👑</span>}
-                      {r.name + formatStars(r.stars)}
+                      <span className="truncate">{r.name + formatStars(r.stars)}</span>
+                      {r.streak > 0 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 rounded-full bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold leading-none text-orange-700 tabular-nums shrink-0"
+                          title={`${r.streak}-day streak`}
+                          aria-label={`${r.streak}-day streak`}
+                        >
+                          <span aria-hidden>🔥</span>
+                          {r.streak}
+                        </span>
+                      )}
                     </span>
-                    <span className="text-sm font-bold tabular-nums text-gray-900">
+                    <span className="text-sm font-bold tabular-nums text-gray-900 shrink-0">
                       {fmtPoints(r.points)}
                     </span>
                   </div>
