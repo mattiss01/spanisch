@@ -66,7 +66,17 @@ interface SessionItem {
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
 
-const LEVEL_LABELS = ['', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Known'];
+const LEVEL_LABELS = [
+  '',
+  'Phase 1',
+  'Phase 2',
+  'Phase 3',
+  'Phase 4',
+  'Phase 5',
+  'Phase 6',
+  'Phase 7',
+  'Known',
+];
 const LEVEL_COLORS = [
   '',
   'bg-red-100 text-red-700',
@@ -74,6 +84,8 @@ const LEVEL_COLORS = [
   'bg-amber-100 text-amber-700',
   'bg-blue-100 text-blue-700',
   'bg-indigo-100 text-indigo-700',
+  'bg-violet-100 text-violet-700',
+  'bg-purple-100 text-purple-700',
   'bg-green-100 text-green-700',
 ];
 
@@ -177,7 +189,7 @@ export default function VokabelnPage() {
   const [wordSortDir, setWordSortDir] = useState<'asc' | 'desc'>('asc');
   const [wordGroup, setWordGroup] = useState<WordGroup>('none');
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(
-    new Set(['phase:6', 'due:none']), // Known / no-review collapsed by default
+    new Set(['phase:8', 'due:none']), // Known / no-review collapsed by default
   );
 
   // Flashcard session state (one word at a time)
@@ -536,7 +548,7 @@ export default function VokabelnPage() {
   type WordSection = { key: string; label: string; badgeClass: string; entries: VocabEntry[] };
   let wordSections: WordSection[] = [];
   if (wordGroup === 'phase') {
-    wordSections = [1, 2, 3, 4, 5, 6]
+    wordSections = [1, 2, 3, 4, 5, 6, 7, 8]
       .map(level => ({
         key: `phase:${level}`,
         label: LEVEL_LABELS[level],

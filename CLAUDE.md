@@ -42,7 +42,7 @@ read-modify-write so a failed read can't overwrite real data with an empty list.
 (vocab) avoid clobbering the whole list; JSONB-blob writes (conjugation/article/race) are read-modify-write.
 
 ### Supabase tables
-- `vocab` — one row per user+word (SRS: `level` 1–5, `next_review`, `last_reviewed`, `review_count`).
+- `vocab` — one row per user+word (SRS: levels 1–7 learning, 8 known; `next_review`, `last_reviewed`, `review_count`).
 - `stats` — one row per user. Cumulative totals + `streak` + **`daily` jsonb** (Berlin-date → activity count).
 - `conjugation`, `article`, `article_topics` — one JSONB row per user (arrays of records).
 - `race` — **one global row** `id='global'` holding `{ points, dailyCounts, settledDates, highscores }`.

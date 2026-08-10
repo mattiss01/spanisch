@@ -1,15 +1,15 @@
 // Shared spaced-repetition helpers used by Vocabulary and Sentences practice.
-// Vocabulary: levels 1–5 are learning phases, 6 = known.
+// Vocabulary: levels 1–7 are learning phases, 8 = known.
 // Sentences: levels 1–4 are learning phases, 5 = known.
 
 export type Confidence = 'sicher' | 'unsicher' | 'bekannt' | 'again';
 
-export const VOCAB_KNOWN_LEVEL = 6;
+export const VOCAB_KNOWN_LEVEL = 8;
 export const SENTENCE_KNOWN_LEVEL = 5;
 
 // Days until the next review for each level (index = level).
 export const SENTENCE_INTERVALS = [0, 1, 3, 7, 14];
-export const VOCAB_INTERVALS = [0, 1, 3, 7, 14, 30];
+export const VOCAB_INTERVALS = [0, 1, 3, 7, 14, 30, 60, 90];
 
 /** @deprecated Use SENTENCE_INTERVALS or VOCAB_INTERVALS */
 export const LEVEL_INTERVALS = SENTENCE_INTERVALS;
@@ -25,8 +25,9 @@ const SENTENCE_DEFAULTS: Required<SrsOptions> = {
 };
 
 // Before Phase 5 existed, vocab stored Known as level 5 with no nextReview.
+// Before Phases 6–7 existed, it stored Known as level 6 with no nextReview.
 export function effectiveVocabLevel(level: number, nextReview?: string): number {
-  if (level === 5 && !nextReview) return VOCAB_KNOWN_LEVEL;
+  if ((level === 5 || level === 6) && !nextReview) return VOCAB_KNOWN_LEVEL;
   return level;
 }
 

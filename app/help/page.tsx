@@ -16,7 +16,7 @@ export default function HelpPage() {
           </h2>
           <p className="text-sm text-gray-600 leading-relaxed">
             The app teaches you words using <strong>spaced repetition</strong>: the more confidently you know a word,
-            the longer before it appears again. Each word has a phase (1–5). Level 6 means you know it.
+            the longer before it appears again. Each word has a phase (1–7). Level 8 means you know it.
           </p>
 
           <div className="space-y-2">
@@ -28,6 +28,8 @@ export default function HelpPage() {
                 { label: 'Phase 3', color: 'bg-amber-100 text-amber-700', desc: 'Review in 7 days' },
                 { label: 'Phase 4', color: 'bg-blue-100 text-blue-700', desc: 'Review in 14 days' },
                 { label: 'Phase 5', color: 'bg-indigo-100 text-indigo-700', desc: 'Review in 30 days' },
+                { label: 'Phase 6', color: 'bg-violet-100 text-violet-700', desc: 'Review in 60 days' },
+                { label: 'Phase 7', color: 'bg-purple-100 text-purple-700', desc: 'Review in 90 days' },
                 { label: 'Known', color: 'bg-green-100 text-green-700', desc: 'No more reviews needed' },
               ].map(({ label, color, desc }) => (
                 <div key={label} className="flex items-center gap-3">
