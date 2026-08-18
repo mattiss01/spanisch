@@ -18,6 +18,8 @@ export const PROFILES: Profile[] = [
   { id: 'jakob', name: 'Jakob', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
   { id: 'robert', name: 'Robert', direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
   { id: 'jake', name: "Jake", direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
+  { id: 'max', name: "Max", direction: 'de_to_es', nativeLang: 'de', targetLang: 'es' },
+  { id: 'sandra', name: "Sandra", direction: 'es_to_de', nativeLang: 'es', targetLang: 'de' },
 ];
 
 export function getProfile(id: string): Profile | null {
