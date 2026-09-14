@@ -188,9 +188,8 @@ export default function VokabelnPage() {
   const [wordSort, setWordSort] = useState<WordSort>('alpha');
   const [wordSortDir, setWordSortDir] = useState<'asc' | 'desc'>('asc');
   const [wordGroup, setWordGroup] = useState<WordGroup>('none');
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(
-    new Set(['phase:8', 'due:none']), // Known / no-review collapsed by default
-  );
+  // Grouped sections start collapsed; tapping a header expands it.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   // Flashcard session state (one word at a time)
   const [phase, setPhase] = useState<Phase>('idle');
@@ -580,8 +579,8 @@ export default function VokabelnPage() {
       .map(([key, b]) => ({ key, label: b.label, badgeClass: 'bg-gray-100 text-gray-600', entries: b.entries }));
   }
 
-  function toggleCollapsed(key: string) {
-    setCollapsedKeys(prev => {
+  function toggleExpanded(key: string) {
+    setExpandedKeys(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
@@ -975,11 +974,11 @@ export default function VokabelnPage() {
                 ) : (
                   <div className="space-y-3">
                     {wordSections.map(section => {
-                      const expanded = wordSearch.trim() !== '' || !collapsedKeys.has(section.key);
+                      const expanded = wordSearch.trim() !== '' || expandedKeys.has(section.key);
                       return (
                         <div key={section.key} className="space-y-2">
                           <button
-                            onClick={() => toggleCollapsed(section.key)}
+                            onClick={() => toggleExpanded(section.key)}
                             className="w-full flex items-center gap-2 px-1 py-1 text-left"
                           >
                             <span className="text-gray-400 text-xs w-3">{expanded ? '▾' : '▸'}</span>
