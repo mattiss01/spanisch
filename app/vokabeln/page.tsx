@@ -1054,6 +1054,28 @@ function Flashcard({
     // component is remounted (key changes) on advance; no local reset needed
   }
 
+  // Keyboard shortcuts: number keys 1–4 pick the rating buttons (left to right).
+  const shortcuts: [boolean, Confidence][] = !checked
+    ? []
+    : correct
+      ? [[true, 'again'], [true, 'unsicher'], [true, 'sicher'], [true, 'bekannt']]
+      : retypeOk
+        ? [[false, 'sicher'], [true, 'unsicher'], [true, 'bekannt']]
+        : [];
+
+  useEffect(() => {
+    if (shortcuts.length === 0) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const opt = shortcuts[Number(e.key) - 1];
+      if (!opt) return;
+      e.preventDefault(); // don't type the digit into the retype field
+      rate(...opt);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
       {/* Progress header */}
@@ -1200,6 +1222,9 @@ function Flashcard({
                 Known
                 <span className="block text-[10px] font-normal opacity-80">mark known</span>
               </button>
+              <p className="col-span-4 hidden sm:block text-[11px] text-gray-400 text-center">
+                Tip: press 1–4 on your keyboard
+              </p>
             </div>
           ) : (
             <>
@@ -1251,6 +1276,7 @@ function Flashcard({
               </div>
               <p className="text-[11px] text-gray-400 text-center">
                 Was it a typo? Keep the phase or mark it known instead of going back.
+                <span className="hidden sm:inline"> Keys 1–3 work too.</span>
               </p>
             </>
           )}
