@@ -66,7 +66,7 @@ export function computeNewLevel(
   if (!correct) return Math.max(1, currentLevel - 1); // wrong: drop a phase
   if (conf === 'bekannt') return knownLevel; // Easy: mark known
   if (conf === 'unsicher') return Math.max(1, currentLevel); // Hard: stay in phase
-  return Math.min(knownLevel, currentLevel + 1); // Good: +1 phase
+  return Math.min(knownLevel - 1, currentLevel + 1); // Good: +1 phase, never past the last one
 }
 
 export function nextReviewDate(
