@@ -11,6 +11,7 @@ import {
 } from '@/lib/storage';
 import { VocabEntry, ProgressStats, RaceResponse } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
+import { MERGED_OLD_TRANSLATIONS } from '@/lib/vocab-merges';
 import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
 import { isBeginner } from '@/lib/profiles';
@@ -115,6 +116,31 @@ function answerNorm(s: string): string {
 
 function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// After the catalog dedupe, words learned from a since-merged duplicate entry still
+// store its old German side (e.g. "warten" for esperar). Returns those rows (by id)
+// with the merged translation ("warten / hoffen"); progress fields are untouched.
+// Only exact matches of an old catalog value change, so hand-entered translations
+// are left alone. Idempotent: once upgraded, a row no longer matches.
+let mergedDeCache: Map<string, string> | null = null;
+function upgradeMergedTranslations(vocab: VocabEntry[]): Map<string, VocabEntry> {
+  if (!mergedDeCache) {
+    mergedDeCache = new Map();
+    for (const w of VOCAB_CATALOG) {
+      const k = norm(w.es);
+      if (k in MERGED_OLD_TRANSLATIONS) mergedDeCache.set(k, w.de);
+    }
+  }
+  const out = new Map<string, VocabEntry>();
+  for (const v of vocab) {
+    const k = norm(v.word);
+    const de = mergedDeCache.get(k);
+    if (de && v.translation !== de && MERGED_OLD_TRANSLATIONS[k].includes(v.translation)) {
+      out.set(v.id, { ...v, translation: de });
+    }
+  }
+  return out;
 }
 
 // Fisher–Yates shuffle (returns a new array) — used to randomize review order.
@@ -230,7 +256,14 @@ export default function VokabelnPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const v = await loadVocabStrict();
+      const loaded = await loadVocabStrict();
+      const upgraded = upgradeMergedTranslations(loaded);
+      const v = upgraded.size ? loaded.map(e => upgraded.get(e.id) ?? e) : loaded;
+      for (const entry of upgraded.values()) {
+        saveChain.current = saveChain.current
+          .then(() => upsertVocabWord(entry))
+          .catch(() => setSaveError(true));
+      }
       setVocab(v);
       setVocabLoaded(true);
       setLoadError(false);
@@ -286,6 +319,8 @@ export default function VokabelnPage() {
 
   const seenWords = new Set(vocab.map(v => norm(v.word)));
   const unseenCount = sourceCatalog.filter(e => !seenWords.has(norm(e.es))).length;
+  // Progress counts catalog words seen, not all vocab rows (hand-added words aren't in the catalog).
+  const seenCatalogCount = sourceCatalog.length - unseenCount;
 
   // Every flashcard done today counts (repeats included) — sourced from the
   // per-day stats counter, not distinct words.
@@ -843,7 +878,7 @@ export default function VokabelnPage() {
                       <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full"
-                          style={{ width: `${Math.round((vocab.length / sourceCatalog.length) * 100)}%` }}
+                          style={{ width: `${Math.round((seenCatalogCount / sourceCatalog.length) * 100)}%` }}
                         />
                       </div>
                     )}
