@@ -58,7 +58,7 @@ alter table stats add column if not exists daily jsonb not null default '{}'::js
 
 - `/vokabeln` — Vocabulary: SRS flashcards (one at a time), **Learn in rounds of 20**, Review
   (shuffled), Words list. Daily goal banner. Beginners (A1) learn an ordered starter set first
-  (`lib/vocab-starter.ts`) then flow into the full `lib/vocab-catalog.ts` (9858 words). The
+  (`lib/vocab-starter.ts`) then flow into the full `lib/vocab-catalog.ts` (10000 words). The
   catalog must have **one entry per normalized Spanish word** (SRS rows are keyed by it) —
   put extra meanings in `de` ("warten / hoffen"), never a second entry.
 - `/konjugation` — Verb conjugation practice from **static catalogs** (`lib/verb-catalog.ts` ES,
