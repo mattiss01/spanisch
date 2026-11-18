@@ -60,7 +60,11 @@ alter table stats add column if not exists daily jsonb not null default '{}'::js
   (shuffled), Words list. Daily goal banner. Beginners (A1) learn an ordered starter set first
   (`lib/vocab-starter.ts`) then flow into the full `lib/vocab-catalog.ts` (10000 words). The
   catalog must have **one entry per normalized Spanish word** (SRS rows are keyed by it) —
-  put extra meanings in `de` ("warten / hoffen"), never a second entry.
+  put extra meanings in `de` ("warten / hoffen"), never a second entry. Every German prompt
+  (each "/"-separated variant, brackets included) must also point to **one** Spanish word: tell
+  synonyms apart with a bracketed hint (`einfach (unkompliziert)` vs `einfach (simpel)`,
+  `das Haar (gehoben)`, `der Saft (Lateinamerika)`). Brackets are shown but never need typing.
+  When a German side changes, add the old value to `lib/vocab-merges.ts` so learned rows upgrade.
 - `/konjugation` — Verb conjugation practice from **static catalogs** (`lib/verb-catalog.ts` ES,
   `lib/verb-catalog-de.ts` DE) — *not* LLM. A1 profiles drill present tense only. Answer checking is
   **accent-insensitive**; Check works with blank fields.

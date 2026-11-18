@@ -11,7 +11,7 @@ import {
 } from '@/lib/storage';
 import { VocabEntry, ProgressStats, RaceResponse } from '@/lib/types';
 import { VOCAB_CATALOG } from '@/lib/vocab-catalog';
-import { MERGED_OLD_TRANSLATIONS } from '@/lib/vocab-merges';
+import { OLD_TRANSLATIONS } from '@/lib/vocab-merges';
 import { STARTER_VOCAB } from '@/lib/vocab-starter';
 import { useProfile } from '@/lib/use-profile';
 import { isBeginner } from '@/lib/profiles';
@@ -121,25 +121,26 @@ function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-// After the catalog dedupe, words learned from a since-merged duplicate entry still
-// store its old German side (e.g. "warten" for esperar). Returns those rows (by id)
-// with the merged translation ("warten / hoffen"); progress fields are untouched.
-// Only exact matches of an old catalog value change, so hand-entered translations
-// are left alone. Idempotent: once upgraded, a row no longer matches.
-let mergedDeCache: Map<string, string> | null = null;
-function upgradeMergedTranslations(vocab: VocabEntry[]): Map<string, VocabEntry> {
-  if (!mergedDeCache) {
-    mergedDeCache = new Map();
-    for (const w of VOCAB_CATALOG) {
+// Words learned before a catalog/starter German side changed (duplicates merged, or the
+// prompt made unambiguous, e.g. "irgendein" → "irgendein (unbestimmt)") still store the
+// OLD German side. Returns those rows (by id) with the current one; progress fields are
+// untouched. Only exact matches of a recorded old value change, so hand-entered
+// translations are left alone. Idempotent: once upgraded, a row no longer matches.
+// Starter words shared with the catalog carry the same German side, so the catalog wins.
+let currentDeCache: Map<string, string> | null = null;
+function upgradeOldTranslations(vocab: VocabEntry[]): Map<string, VocabEntry> {
+  if (!currentDeCache) {
+    currentDeCache = new Map();
+    for (const w of [...STARTER_VOCAB, ...VOCAB_CATALOG]) {
       const k = norm(w.es);
-      if (k in MERGED_OLD_TRANSLATIONS) mergedDeCache.set(k, w.de);
+      if (Object.hasOwn(OLD_TRANSLATIONS, k)) currentDeCache.set(k, w.de);
     }
   }
   const out = new Map<string, VocabEntry>();
   for (const v of vocab) {
     const k = norm(v.word);
-    const de = mergedDeCache.get(k);
-    if (de && v.translation !== de && MERGED_OLD_TRANSLATIONS[k].includes(v.translation)) {
+    const de = currentDeCache.get(k);
+    if (de && v.translation !== de && OLD_TRANSLATIONS[k].includes(v.translation)) {
       out.set(v.id, { ...v, translation: de });
     }
   }
@@ -326,7 +327,7 @@ export default function VokabelnPage() {
   const refresh = useCallback(async () => {
     try {
       const loaded = await loadVocabStrict();
-      const upgraded = upgradeMergedTranslations(loaded);
+      const upgraded = upgradeOldTranslations(loaded);
       const v = upgraded.size ? loaded.map(e => upgraded.get(e.id) ?? e) : loaded;
       for (const entry of upgraded.values()) {
         saveChain.current = saveChain.current
