@@ -63,6 +63,9 @@ interface SessionItem {
   currentLevel: number;
   question: string;
   answer: string;
+  // Other Spanish words with the same German prompt (de→es only), e.g. "irgendein" →
+  // algún / cualquier. Typing one of them also counts as correct.
+  alternatives: string[];
 }
 
 // ─── Interval/level helpers ──────────────────────────────────────────────────
@@ -143,6 +146,57 @@ function upgradeMergedTranslations(vocab: VocabEntry[]): Map<string, VocabEntry>
   return out;
 }
 
+// Splits a German side into the prompts it stands for, splitting on "/" only outside
+// brackets and KEEPING parenthetical qualifiers, so "sein (Eigenschaft)" and
+// "sein (Zustand/Ort)" stay distinct (ser ≠ estar). Fragments under 3 chars (the
+// "r"/"s" of "zweite/r/s") are ignored so they can't link unrelated words.
+function promptVariants(de: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of de) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === '/' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+  }
+  out.push(cur);
+  return out.map(v => v.toLowerCase().replace(/\s+/g, ' ').trim()).filter(v => v.length >= 3);
+}
+
+// German prompt → Spanish words (starter + catalog), built once.
+let promptIndex: Map<string, string[]> | null = null;
+function catalogPromptIndex(): Map<string, string[]> {
+  if (!promptIndex) {
+    promptIndex = new Map();
+    for (const w of [...STARTER_VOCAB, ...VOCAB_CATALOG]) {
+      for (const v of new Set(promptVariants(w.de))) {
+        const list = promptIndex.get(v);
+        if (list) list.push(w.es); else promptIndex.set(v, [w.es]);
+      }
+    }
+  }
+  return promptIndex;
+}
+
+// Other Spanish words (catalog or the learner's own list) that share a German prompt
+// with this card, so a German→Spanish card like "irgendein" accepts algún AND cualquier.
+function sameGermanWords(de: string, es: string, vocab: VocabEntry[]): string[] {
+  const variants = new Set(promptVariants(de));
+  if (variants.size === 0) return [];
+  const self = norm(es);
+  const out = new Map<string, string>();
+  const add = (w: string) => {
+    const k = norm(w);
+    if (k !== self && !out.has(k)) out.set(k, w);
+  };
+  const idx = catalogPromptIndex();
+  for (const v of variants) for (const w of idx.get(v) ?? []) add(w);
+  for (const r of vocab) {
+    if (promptVariants(r.translation).some(v => variants.has(v))) add(r.word);
+  }
+  return [...out.values()];
+}
+
 // Fisher–Yates shuffle (returns a new array) — used to randomize review order.
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -199,6 +253,21 @@ function checkAnswer(user: string, correct: string): { correct: boolean; accentH
   }
 
   return { correct: false };
+}
+
+// The card's own word first; failing that, any other Spanish word with the same
+// German prompt counts too (flagged so the card can show which word it wanted).
+function evaluateAnswer(
+  user: string,
+  item: Pick<SessionItem, 'answer' | 'alternatives'>,
+): { correct: boolean; accentHint?: string; viaAlternative?: string } {
+  const own = checkAnswer(user, item.answer);
+  if (own.correct) return own;
+  for (const alt of item.alternatives) {
+    const r = checkAnswer(user, alt);
+    if (r.correct) return { ...r, viaAlternative: alt };
+  }
+  return own;
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -351,6 +420,8 @@ export default function VokabelnPage() {
       de, es, example, exampleDe: extra?.de, conj: extra?.conj, vocabId, currentLevel,
       question: direction === 'es_to_de' ? es : de,
       answer:   direction === 'es_to_de' ? de : es,
+      // es→de already accepts every German variant; only the German prompt is ambiguous.
+      alternatives: direction === 'de_to_es' ? sameGermanWords(de, es, vocab) : [],
     };
   }
 
@@ -1072,7 +1143,7 @@ function Flashcard({
     inputRef.current?.focus();
   }, []);
 
-  const evaluation = checked ? checkAnswer(answer, item.answer) : null;
+  const evaluation = checked ? evaluateAnswer(answer, item) : null;
   const correct = evaluation?.correct ?? false;
 
   // On a wrong answer, the learner must type the correct word once before rating.
@@ -1172,17 +1243,29 @@ function Flashcard({
             }`}
           >
             <p className={`text-lg font-bold ${correct ? 'text-green-700' : 'text-red-600'}`}>
-              {correct ? '✓ Correct' : '✗ Not quite'}
+              {evaluation?.viaAlternative ? '✓ Also correct' : correct ? '✓ Correct' : '✗ Not quite'}
             </p>
             {!correct && (
               <p className="text-sm text-gray-600 mt-1">
                 Your answer: <span className="line-through">{answer || '—'}</span>
               </p>
             )}
+            {evaluation?.viaAlternative && (
+              <p className="text-xs text-gray-500 mt-1">This card&apos;s word:</p>
+            )}
             <p className="text-base font-semibold text-gray-900 mt-1">{item.answer}</p>
             {evaluation?.accentHint && correct && (
               <p className="text-xs text-blue-600 mt-1">
                 Tip: with accent → <span className="font-semibold">{evaluation.accentHint}</span>
+              </p>
+            )}
+            {item.alternatives.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Same German, also accepted:{' '}
+                <span className="font-medium text-gray-700">
+                  {item.alternatives.slice(0, 5).join(', ')}
+                  {item.alternatives.length > 5 ? ', …' : ''}
+                </span>
               </p>
             )}
           </div>
